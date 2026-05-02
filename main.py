@@ -27,7 +27,7 @@ PRICE_MIN = 200
 PRICE_MAX = 18000
 
 # -----------------------------
-# MEMORY SYSTEM (PERSISTENT)
+# MEMORY SYSTEM
 # -----------------------------
 def load_memory():
     try:
@@ -104,29 +104,49 @@ def score(item):
     return s
 
 # -----------------------------
-# V8 DATA LAYER (NEW STRUCTURE)
+# V9 DATA LAYER (WITH URL)
 # -----------------------------
-def ingest_data(source="local"):
-    """
-    V8: unified data input layer
-    Later we plug real Marketplace/API/feeds here
-    """
-
-    # SIMULATED DATA (still same for now)
-    raw_data = [
-        {"title": "Hilux 2TR manual Sydney ute", "price": 3500, "location": "Sydney NSW", "source": source},
-        {"title": "Prado 1GR Newcastle clean", "price": 4200, "location": "Newcastle NSW", "source": source},
-        {"title": "Hilux hulx rough Canberra", "price": 1800, "location": "Canberra ACT", "source": source},
-        {"title": "BMW broken car Melbourne", "price": 900, "location": "Melbourne VIC", "source": source}
+def ingest_data(source="simulated_v9"):
+    return [
+        {
+            "id": "1",
+            "title": "Hilux 2TR manual Sydney ute",
+            "price": 3500,
+            "location": "Sydney NSW",
+            "url": "https://www.facebook.com/marketplace/item/111",
+            "source": source
+        },
+        {
+            "id": "2",
+            "title": "Prado 1GR Newcastle clean",
+            "price": 4200,
+            "location": "Newcastle NSW",
+            "url": "https://www.facebook.com/marketplace/item/222",
+            "source": source
+        },
+        {
+            "id": "3",
+            "title": "Hilux rough Canberra ute",
+            "price": 1800,
+            "location": "Canberra ACT",
+            "url": "https://www.facebook.com/marketplace/item/333",
+            "source": source
+        },
+        {
+            "id": "4",
+            "title": "BMW broken car Melbourne",
+            "price": 900,
+            "location": "Melbourne VIC",
+            "url": "https://www.facebook.com/marketplace/item/444",
+            "source": source
+        }
     ]
-
-    return raw_data
 
 # -----------------------------
 # MAIN ENGINE
 # -----------------------------
 def run_cycle():
-    items = ingest_data("simulated_v8")
+    items = ingest_data()
 
     for i in items:
         uid = make_id(i)
@@ -155,8 +175,9 @@ def run_cycle():
 🚗 {i['title']}
 📍 {i['location']}
 💰 ${i['price']}
+🔗 {i['url']}
 📊 Score: {s}
-🌐 Source: {i.get('source')}
+🌐 Source: {i['source']}
 ⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
 
@@ -170,7 +191,7 @@ def run_cycle():
 # LOOP
 # -----------------------------
 def main():
-    send("🤖 V8 Started (Data Layer Ready for Real Marketplace)")
+    send("🤖 V9 Started (HTTPS Link System Enabled)")
 
     while True:
         run_cycle()
