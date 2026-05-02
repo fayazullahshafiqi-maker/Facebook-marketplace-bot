@@ -2,8 +2,6 @@ import os
 import json
 import hashlib
 import requests
-import time
-import threading
 from datetime import datetime
 from flask import Flask, request
 
@@ -22,10 +20,7 @@ def load_memory():
         with open(MEMORY_FILE, "r") as f:
             return json.load(f)
     except:
-        return {
-            "seen": {},
-            "likes": {}
-        }
+        return {"seen": {}, "likes": {}}
 
 def save_memory(data):
     with open(MEMORY_FILE, "w") as f:
@@ -41,39 +36,19 @@ def send(msg):
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
 # -----------------------------
-# TARGET SYSTEM
+# CATEGORY MAP
 # -----------------------------
-TARGETS = [
-    "hilux",
-    "prado",
-    "landcruiser",
-    "dmax",
-    "triton",
-    "engine",
-    "gearbox",
-    "ute"
-]
+TARGETS = ["hilux", "prado", "engine", "gearbox", "ute"]
 
-# -----------------------------
-# DETECT CATEGORY
-# -----------------------------
 def detect(title):
     t = title.lower()
-
     for x in TARGETS:
         if x in t:
             return x
-
     return "general"
 
 # -----------------------------
-# MEMORY BOOST
-# -----------------------------
-def boost(keyword):
-    return memory["likes"].get(keyword, 0)
-
-# -----------------------------
-# INTELLIGENCE ENGINE (V17 CORE)
+# SCORE ENGINE (stable V17 core)
 # -----------------------------
 def score(item):
     title = item["title"].lower()
@@ -81,30 +56,30 @@ def score(item):
 
     keyword = detect(title)
 
-    score = 0
+    s = 0
     reasons = []
 
     if keyword != "general":
-        score += 2
+        s += 2
         reasons.append(f"✔ Match: {keyword}")
 
-    score += boost(keyword)
+    s += memory["likes"].get(keyword, 0)
 
     if price < 4000:
-        score += 4
+        s += 4
         reasons.append("🔥 Cheap deal")
     elif price < 7000:
-        score += 2
+        s += 2
         reasons.append("✔ Fair price")
 
     if "bmw" in title or "mercedes" in title:
-        score -= 2
+        s -= 2
         reasons.append("⚠ Luxury risk")
 
-    return score, reasons, keyword
+    return s, reasons, keyword
 
 # -----------------------------
-# PROCESS ENGINE
+# PROCESS LISTING
 # -----------------------------
 def process(item):
     uid = hashlib.md5((item["title"] + item["location"]).lower().encode()).hexdigest()
@@ -117,13 +92,12 @@ def process(item):
     if s < 5:
         return
 
-    # self-learning boost
     memory["likes"][keyword] = memory["likes"].get(keyword, 0) + 1
 
     tag = "🔥 HIGH PRIORITY" if s >= 7 else "👍 GOOD DEAL"
 
     msg = f"""
-{tag} ({s}/10) [COLLECTED: {keyword}]
+{tag} ({s}/10)
 
 🚗 {item['title']}
 📍 {item['location']}
@@ -132,7 +106,6 @@ def process(item):
 📊 WHY:
 {chr(10).join(reasons)}
 
-🧠 Interest Level: {memory['likes'][keyword]}
 🔗 {item['url']}
 ⏰ {datetime.now().strftime('%H:%M:%S')}
 """
@@ -143,7 +116,7 @@ def process(item):
     save_memory(memory)
 
 # -----------------------------
-# WEBHOOK (INGEST ENTRY POINT)
+# INGEST API
 # -----------------------------
 @app.route("/ingest", methods=["POST"])
 def ingest():
@@ -156,48 +129,11 @@ def ingest():
 # -----------------------------
 @app.route("/")
 def home():
-    return "V18B MULTI-COLLECTOR SYSTEM RUNNING"
-
-# -----------------------------
-# COLLECTOR 1 (SIMULATED HILUX FEED)
-# -----------------------------
-def collector_hilux():
-    while True:
-        time.sleep(30)
-
-        listing = {
-            "title": "Toyota Hilux 2TR Sydney Clean Ute",
-            "price": 3500,
-            "location": "Sydney NSW",
-            "url": "https://facebook.com/marketplace/item/123"
-        }
-
-        requests.post("http://127.0.0.1:8080/ingest", json=listing)
-        print("HILUX COLLECTOR SENT")
-
-# -----------------------------
-# COLLECTOR 2 (ENGINE FEED)
-# -----------------------------
-def collector_engine():
-    while True:
-        time.sleep(45)
-
-        listing = {
-            "title": "Toyota 1KD Engine Good Condition",
-            "price": 900,
-            "location": "Sydney NSW",
-            "url": "https://facebook.com/marketplace/item/999"
-        }
-
-        requests.post("http://127.0.0.1:8080/ingest", json=listing)
-        print("ENGINE COLLECTOR SENT")
+    return "V19 MULTI-COLLECTOR FRAMEWORK READY"
 
 # -----------------------------
 # START SERVER
 # -----------------------------
 if __name__ == "__main__":
-    threading.Thread(target=collector_hilux, daemon=True).start()
-    threading.Thread(target=collector_engine, daemon=True).start()
-
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
