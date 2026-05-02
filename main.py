@@ -2,6 +2,8 @@ import os
 import json
 import hashlib
 import requests
+import threading
+import time
 from datetime import datetime
 from flask import Flask, request
 
@@ -9,6 +11,10 @@ app = Flask(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
+
+# IMPORTANT:
+# Replace with your Railway public URL later if needed
+BASE_URL = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
 
 MEMORY_FILE = "memory.json"
 
@@ -33,16 +39,21 @@ memory = load_memory()
 # -----------------------------
 def send(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+
+    requests.post(url, data={
+        "chat_id": CHAT_ID,
+        "text": msg
+    })
 
 # -----------------------------
 # ID
 # -----------------------------
 def make_id(item):
-    return hashlib.md5((item["title"] + item["location"]).lower().encode()).hexdigest()
+    raw = (item["title"] + item["location"]).lower()
+    return hashlib.md5(raw.encode()).hexdigest()
 
 # -----------------------------
-# SIMPLE SCORING (STABLE)
+# SCORING
 # -----------------------------
 def score(item):
     title = item["title"].lower()
@@ -60,16 +71,16 @@ def score(item):
         reasons.append("🔥 Under market price")
     elif price < 7000:
         s += 2
-        reasons.append("✔ Fair price")
+        reasons.append("✔ Fair deal")
 
     if "bmw" in title:
         s -= 2
-        reasons.append("⚠ Risky vehicle")
+        reasons.append("⚠ Risk vehicle")
 
     return s, reasons
 
 # -----------------------------
-# PROCESS ITEM
+# PROCESS
 # -----------------------------
 def process(item):
     uid = make_id(item)
@@ -83,7 +94,7 @@ def process(item):
         return
 
     msg = f"""
-🔥 DEAL ALERT (Score {s}/10)
+🔥 LIVE DEAL ALERT ({s}/10)
 
 🚗 {item['title']}
 📍 {item['location']}
@@ -107,6 +118,7 @@ def process(item):
 @app.route("/ingest", methods=["POST"])
 def ingest():
     data = request.json
+
     print("RECEIVED:", data)
 
     process(data)
@@ -118,11 +130,42 @@ def ingest():
 # -----------------------------
 @app.route("/")
 def home():
-    return "V13 RUNNING OK"
+    return "V14A LIVE INGESTION ENGINE ACTIVE"
 
 # -----------------------------
-# START (RAILWAY SAFE)
+# LIVE INGESTION SIMULATOR
+# -----------------------------
+def simulator():
+    time.sleep(10)
+
+    while True:
+        listing = {
+            "title": "Toyota Hilux 2TR Sydney Clean Ute",
+            "price": 3500,
+            "location": "Sydney NSW",
+            "url": "https://facebook.com/marketplace/item/123"
+        }
+
+        try:
+            requests.post(
+                f"https://{BASE_URL}/ingest",
+                json=listing,
+                timeout=10
+            )
+
+            print("SIMULATED LISTING SENT")
+
+        except Exception as e:
+            print("SIMULATOR ERROR:", e)
+
+        time.sleep(60)
+
+# -----------------------------
+# START
 # -----------------------------
 if __name__ == "__main__":
+    threading.Thread(target=simulator, daemon=True).start()
+
     port = int(os.environ.get("PORT", 8080))
+
     app.run(host="0.0.0.0", port=port)
