@@ -1,67 +1,43 @@
 import requests
 import time
-from threading import Thread
+import os
 
-INGEST_URL = "http://127.0.0.1:8080/ingest"
+# Must be set in Railway environment variables
+INGEST_URL = os.environ.get("INGEST_URL")
 
 # -----------------------------
-# HILUX COLLECTOR
+# SAFETY CHECK
 # -----------------------------
-def collector_hilux():
+if not INGEST_URL:
+    raise ValueError("INGEST_URL is not set in environment variables")
+
+# -----------------------------
+# MAIN CLOUD COLLECTOR LOOP
+# -----------------------------
+def run_collector():
     while True:
-        data = {
+        listing = {
             "title": "Toyota Hilux 2TR Clean Ute Sydney",
             "price": 3500,
             "location": "Sydney NSW",
             "url": "https://facebook.com/item/111"
         }
 
-        requests.post(INGEST_URL, json=data)
-        print("HILUX SENT")
+        try:
+            response = requests.post(INGEST_URL, json=listing, timeout=10)
 
-        time.sleep(30)
+            if response.status_code == 200:
+                print("✅ SENT TO CLOUD BOT")
+            else:
+                print("⚠️ FAILED:", response.status_code)
 
-# -----------------------------
-# ENGINE COLLECTOR
-# -----------------------------
-def collector_engine():
-    while True:
-        data = {
-            "title": "Toyota 1KD Engine Good Condition",
-            "price": 900,
-            "location": "Sydney NSW",
-            "url": "https://facebook.com/item/222"
-        }
-
-        requests.post(INGEST_URL, json=data)
-        print("ENGINE SENT")
-
-        time.sleep(45)
-
-# -----------------------------
-# PARTS COLLECTOR
-# -----------------------------
-def collector_parts():
-    while True:
-        data = {
-            "title": "Toyota Gearbox Auto 4x4",
-            "price": 600,
-            "location": "Sydney NSW",
-            "url": "https://facebook.com/item/333"
-        }
-
-        requests.post(INGEST_URL, json=data)
-        print("PARTS SENT")
+        except Exception as e:
+            print("❌ ERROR:", e)
 
         time.sleep(60)
 
 # -----------------------------
-# RUN ALL COLLECTORS
+# START
 # -----------------------------
 if __name__ == "__main__":
-    Thread(target=collector_hilux).start()
-    Thread(target=collector_engine).start()
-    Thread(target=collector_parts).start()
-
-    while True:
-        time.sleep(9999)
+    run_collector()
