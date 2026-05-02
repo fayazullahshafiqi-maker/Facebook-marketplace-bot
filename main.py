@@ -15,14 +15,17 @@ CHAT_ID = os.environ.get("CHAT_ID")
 MEMORY_FILE = "memory.json"
 
 # -----------------------------
-# MEMORY
+# MEMORY (V17 SELF-LEARNING)
 # -----------------------------
 def load_memory():
     try:
         with open(MEMORY_FILE, "r") as f:
             return json.load(f)
     except:
-        return {"seen": {}}
+        return {
+            "seen": {},
+            "likes": {}
+        }
 
 def save_memory(data):
     with open(MEMORY_FILE, "w") as f:
@@ -38,105 +41,105 @@ def send(msg):
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
 # -----------------------------
-# CATEGORIES (V16 CORE)
+# TARGETS
 # -----------------------------
-CATEGORIES = {
-    "cars": ["hilux", "prado", "landcruiser", "dmax", "triton"],
-    "parts": ["engine", "gearbox", "turbo", "diff"],
-    "utes": ["ute", "tray", "dual cab"],
-    "luxury": ["bmw", "mercedes", "audi"]
-}
+TARGETS = [
+    "hilux",
+    "prado",
+    "landcruiser",
+    "dmax",
+    "triton",
+    "engine",
+    "gearbox",
+    "ute"
+]
 
-def detect_category(title):
+# -----------------------------
+# CATEGORY DETECT
+# -----------------------------
+def detect(title):
     t = title.lower()
 
-    for cat, keywords in CATEGORIES.items():
-        for k in keywords:
-            if k in t:
-                return cat
+    for x in TARGETS:
+        if x in t:
+            return x
 
     return "general"
 
 # -----------------------------
-# ID GENERATOR
+# SELF-LEARNING BOOST SYSTEM
 # -----------------------------
-def make_id(item):
-    return hashlib.md5((item["title"] + item["location"]).lower().encode()).hexdigest()
+def get_boost(keyword):
+    return memory["likes"].get(keyword, 0)
 
 # -----------------------------
-# V16 INTELLIGENCE ENGINE
+# SCORE ENGINE (V17)
 # -----------------------------
 def score(item):
     title = item["title"].lower()
     price = item["price"]
 
-    category = detect_category(title)
+    keyword = detect(title)
 
     score = 0
     reasons = []
 
     # -------------------------
-    # CATEGORY LOGIC
+    # BASE TARGET MATCH
     # -------------------------
-    if category == "cars":
-        if price < 4000:
-            score += 5
-            reasons.append("🔥 Cheap car deal")
-        elif price < 7000:
-            score += 3
-            reasons.append("✔ Fair car price")
-
-    elif category == "parts":
-        if price < 500:
-            score += 5
-            reasons.append("🔥 Cheap parts deal")
-        else:
-            score += 2
-            reasons.append("✔ Normal parts deal")
-
-    elif category == "utes":
-        if price < 5000:
-            score += 4
-            reasons.append("✔ Good ute deal")
-
-    elif category == "luxury":
-        score -= 2
-        reasons.append("⚠ Luxury vehicle risk")
-
-    else:
-        score += 1
-        reasons.append("ℹ General item")
-
-    # -------------------------
-    # KEYWORD BOOST
-    # -------------------------
-    if any(k in title for k in ["hilux", "prado", "engine", "gearbox"]):
+    if keyword != "general":
         score += 2
-        reasons.append("✔ High-value keyword match")
+        reasons.append(f"✔ Match: {keyword}")
 
-    return score, reasons, category
+    # -------------------------
+    # SELF LEARNING BOOST
+    # -------------------------
+    boost = get_boost(keyword)
+
+    if boost > 0:
+        score += boost
+        reasons.append(f"🧠 User interest boost (+{boost})")
+
+    # -------------------------
+    # PRICE LOGIC
+    # -------------------------
+    if price < 4000:
+        score += 4
+        reasons.append("🔥 Cheap deal")
+    elif price < 7000:
+        score += 2
+        reasons.append("✔ Fair price")
+
+    # -------------------------
+    # RISK FILTER
+    # -------------------------
+    if "bmw" in title or "mercedes" in title:
+        score -= 2
+        reasons.append("⚠ Luxury risk")
+
+    return score, reasons, keyword
 
 # -----------------------------
-# PROCESS LISTING
+# PROCESS ITEM
 # -----------------------------
 def process(item):
-    uid = make_id(item)
+    uid = hashlib.md5((item["title"] + item["location"]).lower().encode()).hexdigest()
 
     if memory["seen"].get(uid):
         return
 
-    s, reasons, category = score(item)
+    s, reasons, keyword = score(item)
 
     if s < 5:
         return
 
-    if s >= 7:
-        tag = "🔥 HIGH PRIORITY DEAL"
-    else:
-        tag = "👍 GOOD DEAL"
+    # simulate "learning"
+    memory["likes"][keyword] = memory["likes"].get(keyword, 0) + 1
+
+    tag = "🔥 HIGH PRIORITY" if s >= 7 else "👍 GOOD DEAL"
 
     msg = f"""
-{tag} ({s}/10) [{category.upper()}]
+{tag} ({s}/10) [LEARNING: {keyword}]
 
 🚗 {item['title']}
 📍 {item['location']}
@@ -145,6 +148,7 @@ def process(item):
 📊 WHY:
 {chr(10).join(reasons)}
 
+🧠 Interest Level: {memory['likes'][keyword]}
 🔗 {item['url']}
 ⏰ {datetime.now().strftime('%H:%M:%S')}
 """
@@ -160,18 +164,15 @@ def process(item):
 @app.route("/ingest", methods=["POST"])
 def ingest():
     data = request.json
-    print("RECEIVED:", data)
-
     process(data)
-
     return {"status": "ok"}
 
 # -----------------------------
-# HEALTH CHECK
+# HEALTH
 # -----------------------------
 @app.route("/")
 def home():
-    return "V16 MULTI-CATEGORY SYSTEM RUNNING"
+    return "V17 SELF-LEARNING ENGINE RUNNING"
 
 # -----------------------------
 # SIMULATOR
@@ -193,8 +194,7 @@ def simulator():
                 json=listing,
                 timeout=10
             )
-
-            print("SIMULATED LISTING SENT")
+            print("SENT")
 
         except Exception as e:
             print("ERROR:", e)
@@ -202,7 +202,7 @@ def simulator():
         time.sleep(60)
 
 # -----------------------------
-# START SERVER
+# START
 # -----------------------------
 if __name__ == "__main__":
     threading.Thread(target=simulator, daemon=True).start()
