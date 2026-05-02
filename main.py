@@ -18,7 +18,7 @@ def load_memory():
         with open(MEMORY_FILE, "r") as f:
             return json.load(f)
     except:
-        return {"seen": {}}
+        return {"seen": {}, "prices": {}}
 
 def save_memory(data):
     with open(MEMORY_FILE, "w") as f:
@@ -27,21 +27,17 @@ def save_memory(data):
 memory = load_memory()
 
 # -----------------------------
-# TELEGRAM (TEXT ONLY - SAFE)
+# TELEGRAM
 # -----------------------------
-def send_message(text):
+def send(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    r = requests.post(url, data={
-        "chat_id": CHAT_ID,
-        "text": text
-    })
-    print("SEND:", r.text)
+    requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
 # -----------------------------
 # ID
 # -----------------------------
 def make_id(item):
-    return hashlib.md5((item["title"] + item["location"]).encode()).hexdigest()
+    return hashlib.md5((item["title"] + item["location"]).lower().encode()).hexdigest()
 
 # -----------------------------
 # DATA (SIMULATED)
@@ -49,38 +45,74 @@ def make_id(item):
 def get_listings():
     return [
         {
-            "title": "Hilux 2TR Sydney ute clean",
+            "title": "Toyota Hilux 2TR manual clean",
             "price": 3500,
             "location": "Sydney NSW",
-            "url": "https://www.facebook.com/marketplace/item/111"
+            "url": "https://facebook.com/marketplace/item/111"
         },
         {
-            "title": "Prado 1GR Newcastle strong",
+            "title": "Toyota Prado 1GR strong engine",
             "price": 4200,
             "location": "Newcastle NSW",
-            "url": "https://www.facebook.com/marketplace/item/222"
+            "url": "https://facebook.com/marketplace/item/222"
         },
         {
-            "title": "Hilux Canberra rough ute",
+            "title": "Hilux rough ute Canberra",
             "price": 1800,
             "location": "Canberra ACT",
-            "url": "https://www.facebook.com/marketplace/item/333"
+            "url": "https://facebook.com/marketplace/item/333"
+        },
+        {
+            "title": "BMW broken engine car",
+            "price": 900,
+            "location": "Melbourne VIC",
+            "url": "https://facebook.com/marketplace/item/444"
         }
     ]
 
 # -----------------------------
-# SIMPLE SCORE (FOR TESTING)
+# SMART SCORING ENGINE (V11A)
 # -----------------------------
 def score(item):
-    if item["price"] < 5000:
-        return 8
-    return 5
+    text = item["title"].lower()
+    price = item["price"]
+
+    score = 0
+    reasons = []
+
+    # MODEL VALUE
+    if "hilux" in text or "prado" in text:
+        score += 4
+        reasons.append("✔ High demand model")
+
+    # ENGINE VALUE
+    if "2tr" in text or "1gr" in text:
+        score += 3
+        reasons.append("✔ Strong engine type")
+
+    # PRICE LOGIC
+    if price < 2500:
+        score += 4
+        reasons.append("✔ Very cheap deal")
+    elif price < 5000:
+        score += 3
+        reasons.append("✔ Under market value")
+    elif price < 8000:
+        score += 1
+        reasons.append("⚠ Slightly high")
+
+    # PENALTY
+    if "bmw" in text:
+        score -= 2
+        reasons.append("⚠ Risky model")
+
+    return score, reasons
 
 # -----------------------------
 # LOOP
 # -----------------------------
 def run_cycle():
-    print("RUNNING CYCLE...")
+    print("V11A RUNNING...")
 
     items = get_listings()
 
@@ -90,28 +122,29 @@ def run_cycle():
         if memory["seen"].get(uid):
             continue
 
-        s = score(i)
+        s, reasons = score(i)
 
-        print("FOUND:", i["title"], "score:", s)
+        print("CHECK:", i["title"], s)
 
-        if s >= 5:
-            tag = "🔥 DEAL ALERT"
-        else:
+        # FILTER (SMART)
+        if s < 5:
             continue
 
         msg = f"""
-{tag}
+🔥 DEAL ALERT (Score: {s}/10)
 
 🚗 {i['title']}
 📍 {i['location']}
 💰 ${i['price']}
-📊 Score: {s}
+
+📊 WHY THIS DEAL:
+{chr(10).join(reasons)}
 
 🔗 {i['url']}
 ⏰ {datetime.now().strftime('%H:%M:%S')}
 """
 
-        send_message(msg)
+        send(msg)
 
         memory["seen"][uid] = True
 
@@ -121,7 +154,7 @@ def run_cycle():
 # START
 # -----------------------------
 def main():
-    send_message("🤖 C10 CLEAN MODE STARTED (TEXT + LINK ONLY)")
+    send("🤖 V11A SMART INTELLIGENCE STARTED")
 
     while True:
         run_cycle()
