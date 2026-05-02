@@ -1,9 +1,9 @@
 import os
 import json
 import hashlib
-from flask import Flask, request
 import requests
 from datetime import datetime
+from flask import Flask, request
 
 app = Flask(__name__)
 
@@ -39,38 +39,37 @@ def send(msg):
 # ID
 # -----------------------------
 def make_id(item):
-    raw = (item["title"] + item["location"]).lower()
-    return hashlib.md5(raw.encode()).hexdigest()
+    return hashlib.md5((item["title"] + item["location"]).lower().encode()).hexdigest()
 
 # -----------------------------
-# SMART SCORE (V12 LOGIC)
+# SIMPLE SCORING (STABLE)
 # -----------------------------
 def score(item):
     title = item["title"].lower()
     price = item["price"]
 
-    score = 0
+    s = 0
     reasons = []
 
     if "hilux" in title or "prado" in title:
-        score += 4
+        s += 4
         reasons.append("✔ High demand model")
 
     if price < 4000:
-        score += 4
+        s += 4
         reasons.append("🔥 Under market price")
     elif price < 7000:
-        score += 2
-        reasons.append("✔ Fair deal")
+        s += 2
+        reasons.append("✔ Fair price")
 
     if "bmw" in title:
-        score -= 2
-        reasons.append("⚠ Risk vehicle")
+        s -= 2
+        reasons.append("⚠ Risky vehicle")
 
-    return score, reasons
+    return s, reasons
 
 # -----------------------------
-# PROCESS LISTING
+# PROCESS ITEM
 # -----------------------------
 def process(item):
     uid = make_id(item)
@@ -103,12 +102,11 @@ def process(item):
     save_memory(memory)
 
 # -----------------------------
-# WEBHOOK ENDPOINT (THIS IS V13 CORE)
+# WEBHOOK ENDPOINT
 # -----------------------------
 @app.route("/ingest", methods=["POST"])
 def ingest():
     data = request.json
-
     print("RECEIVED:", data)
 
     process(data)
@@ -116,11 +114,15 @@ def ingest():
     return {"status": "ok"}
 
 # -----------------------------
-# STARTUP
+# HEALTH CHECK
 # -----------------------------
 @app.route("/")
 def home():
-    return "V13 INGESTION ENGINE RUNNING"
+    return "V13 RUNNING OK"
 
+# -----------------------------
+# START (RAILWAY SAFE)
+# -----------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
