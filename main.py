@@ -36,7 +36,7 @@ def send(msg):
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
 # -----------------------------
-# CATEGORY MAP
+# TARGETS
 # -----------------------------
 TARGETS = ["hilux", "prado", "engine", "gearbox", "ute"]
 
@@ -48,7 +48,7 @@ def detect(title):
     return "general"
 
 # -----------------------------
-# SCORE ENGINE (stable V17 core)
+# SCORE ENGINE
 # -----------------------------
 def score(item):
     title = item["title"].lower()
@@ -79,7 +79,7 @@ def score(item):
     return s, reasons, keyword
 
 # -----------------------------
-# PROCESS LISTING
+# PROCESS
 # -----------------------------
 def process(item):
     uid = hashlib.md5((item["title"] + item["location"]).lower().encode()).hexdigest()
@@ -116,7 +116,7 @@ def process(item):
     save_memory(memory)
 
 # -----------------------------
-# INGEST API
+# WEBHOOK
 # -----------------------------
 @app.route("/ingest", methods=["POST"])
 def ingest():
@@ -124,15 +124,12 @@ def ingest():
     process(data)
     return {"status": "ok"}
 
-# -----------------------------
-# HEALTH CHECK
-# -----------------------------
 @app.route("/")
 def home():
-    return "V19 MULTI-COLLECTOR FRAMEWORK READY"
+    return "V20A SYSTEM RUNNING"
 
 # -----------------------------
-# START SERVER
+# START
 # -----------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
