@@ -2,13 +2,16 @@ import os
 import requests
 import time
 import hashlib
+import json
 from datetime import datetime
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 
+MEMORY_FILE = "memory.json"
+
 # -----------------------------
-# NSW + CANBERRA SYSTEM
+# LOCATIONS (NSW + CANBERRA)
 # -----------------------------
 LOCATIONS = [
     "sydney", "parramatta", "auburn", "bankstown",
@@ -24,10 +27,20 @@ PRICE_MIN = 200
 PRICE_MAX = 18000
 
 # -----------------------------
-# MEMORY SYSTEM
+# LOAD MEMORY (PERSISTENT)
 # -----------------------------
-seen_listings = set()
-price_history = {}
+def load_memory():
+    try:
+        with open(MEMORY_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {"seen": {}, "prices": {}}
+
+def save_memory(data):
+    with open(MEMORY_FILE, "w") as f:
+        json.dump(data, f)
+
+memory = load_memory()
 
 # -----------------------------
 # TELEGRAM
@@ -40,7 +53,7 @@ def send(msg):
 # UNIQUE ID
 # -----------------------------
 def make_id(item):
-    raw = item["title"] + str(item["price"]) + item["location"]
+    raw = item["title"] + item["location"]
     return hashlib.md5(raw.encode()).hexdigest()
 
 # -----------------------------
@@ -51,16 +64,15 @@ def is_valid_location(text):
     return any(loc in t for loc in LOCATIONS)
 
 # -----------------------------
-# PRICE DROP CHECK
+# PRICE DROP CHECK (PERSISTENT)
 # -----------------------------
-def check_price_drop(uid, current_price):
-    old_price = price_history.get(uid)
+def check_price_drop(uid, price):
+    old_price = memory["prices"].get(uid)
 
-    price_history[uid] = current_price
+    memory["prices"][uid] = price
 
-    if old_price and current_price < old_price:
-        drop = old_price - current_price
-        return True, drop
+    if old_price and price < old_price:
+        return True, old_price - price
 
     return False, 0
 
@@ -93,7 +105,7 @@ def score(item):
     return s
 
 # -----------------------------
-# DATA SOURCE (SIMULATION)
+# SIMULATED DATA (V7 PLACEHOLDER)
 # -----------------------------
 def get_listings():
     return [
@@ -104,19 +116,16 @@ def get_listings():
     ]
 
 # -----------------------------
-# MAIN LOOP
+# MAIN ENGINE
 # -----------------------------
 def run_cycle():
-    global seen_listings
-
     items = get_listings()
 
     for i in items:
-
         uid = make_id(i)
 
-        # ❌ skip duplicates
-        if uid in seen_listings:
+        # skip duplicates (persistent)
+        if memory["seen"].get(uid):
             continue
 
         s = score(i)
@@ -128,12 +137,12 @@ def run_cycle():
         else:
             continue
 
-        # 📉 PRICE DROP LOGIC
-        price_drop, drop_amount = check_price_drop(uid, i["price"])
+        # price drop logic
+        dropped, amount = check_price_drop(uid, i["price"])
 
         extra = ""
-        if price_drop:
-            extra = f"\n📉 PRICE DROPPED: -${drop_amount}"
+        if dropped:
+            extra = f"\n📉 PRICE DROPPED: -${amount}"
 
         msg = f"""
 {tag}{extra}
@@ -147,13 +156,16 @@ def run_cycle():
 
         send(msg)
 
-        seen_listings.add(uid)
+        # save memory
+        memory["seen"][uid] = True
+
+    save_memory(memory)
 
 # -----------------------------
-# LOOP ENGINE
+# LOOP
 # -----------------------------
 def main():
-    send("🤖 V6.1 Started (Clean + Price Drop Detection)")
+    send("🤖 V7 Started (Persistent Memory Enabled)")
 
     while True:
         run_cycle()
