@@ -15,20 +15,6 @@ CHAT_ID = os.environ.get("CHAT_ID")
 MEMORY_FILE = "memory.json"
 
 # -----------------------------
-# TARGET SYSTEM (V15A CORE)
-# -----------------------------
-TARGETS = [
-    "hilux",
-    "prado",
-    "landcruiser",
-    "dmax",
-    "triton",
-    "ute",
-    "engine",
-    "gearbox"
-]
-
-# -----------------------------
 # MEMORY
 # -----------------------------
 def load_memory():
@@ -52,55 +38,83 @@ def send(msg):
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
 # -----------------------------
-# ID
+# CATEGORIES (V16 CORE)
+# -----------------------------
+CATEGORIES = {
+    "cars": ["hilux", "prado", "landcruiser", "dmax", "triton"],
+    "parts": ["engine", "gearbox", "turbo", "diff"],
+    "utes": ["ute", "tray", "dual cab"],
+    "luxury": ["bmw", "mercedes", "audi"]
+}
+
+def detect_category(title):
+    t = title.lower()
+
+    for cat, keywords in CATEGORIES.items():
+        for k in keywords:
+            if k in t:
+                return cat
+
+    return "general"
+
+# -----------------------------
+# ID GENERATOR
 # -----------------------------
 def make_id(item):
     return hashlib.md5((item["title"] + item["location"]).lower().encode()).hexdigest()
 
 # -----------------------------
-# V15A SMART SCORING ENGINE
+# V16 INTELLIGENCE ENGINE
 # -----------------------------
 def score(item):
     title = item["title"].lower()
     price = item["price"]
 
+    category = detect_category(title)
+
     score = 0
     reasons = []
 
     # -------------------------
-    # TARGET MATCHING
+    # CATEGORY LOGIC
     # -------------------------
-    matched = False
-    for t in TARGETS:
-        if t in title:
+    if category == "cars":
+        if price < 4000:
+            score += 5
+            reasons.append("🔥 Cheap car deal")
+        elif price < 7000:
             score += 3
-            reasons.append(f"✔ Target match: {t}")
-            matched = True
+            reasons.append("✔ Fair car price")
 
-    if not matched:
+    elif category == "parts":
+        if price < 500:
+            score += 5
+            reasons.append("🔥 Cheap parts deal")
+        else:
+            score += 2
+            reasons.append("✔ Normal parts deal")
+
+    elif category == "utes":
+        if price < 5000:
+            score += 4
+            reasons.append("✔ Good ute deal")
+
+    elif category == "luxury":
         score -= 2
-        reasons.append("⚠ No target match")
+        reasons.append("⚠ Luxury vehicle risk")
 
-    # -------------------------
-    # PRICE LOGIC
-    # -------------------------
-    if price < 4000:
-        score += 4
-        reasons.append("🔥 Very cheap deal")
-    elif price < 7000:
-        score += 2
-        reasons.append("✔ Fair price")
     else:
-        reasons.append("⚠ High price")
+        score += 1
+        reasons.append("ℹ General item")
 
     # -------------------------
-    # RISK FILTER
+    # KEYWORD BOOST
     # -------------------------
-    if "bmw" in title or "mercedes" in title:
-        score -= 2
-        reasons.append("⚠ Luxury risk vehicle")
+    if any(k in title for k in ["hilux", "prado", "engine", "gearbox"]):
+        score += 2
+        reasons.append("✔ High-value keyword match")
 
-    return score, reasons
+    return score, reasons, category
 
 # -----------------------------
 # PROCESS LISTING
@@ -111,7 +125,7 @@ def process(item):
     if memory["seen"].get(uid):
         return
 
-    s, reasons = score(item)
+    s, reasons, category = score(item)
 
     if s < 5:
         return
@@ -122,7 +136,7 @@ def process(item):
         tag = "👍 GOOD DEAL"
 
     msg = f"""
-{tag} ({s}/10)
+{tag} ({s}/10) [{category.upper()}]
 
 🚗 {item['title']}
 📍 {item['location']}
@@ -141,7 +155,7 @@ def process(item):
     save_memory(memory)
 
 # -----------------------------
-# WEBHOOK ENDPOINT
+# WEBHOOK
 # -----------------------------
 @app.route("/ingest", methods=["POST"])
 def ingest():
@@ -157,10 +171,10 @@ def ingest():
 # -----------------------------
 @app.route("/")
 def home():
-    return "V15A TARGET SYSTEM RUNNING"
+    return "V16 MULTI-CATEGORY SYSTEM RUNNING"
 
 # -----------------------------
-# SIMULATOR (TESTING ONLY)
+# SIMULATOR
 # -----------------------------
 def simulator():
     time.sleep(10)
@@ -179,6 +193,7 @@ def simulator():
                 json=listing,
                 timeout=10
             )
+
             print("SIMULATED LISTING SENT")
 
         except Exception as e:
