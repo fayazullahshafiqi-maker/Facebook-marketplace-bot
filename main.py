@@ -18,7 +18,7 @@ def load_memory():
         with open(MEMORY_FILE, "r") as f:
             return json.load(f)
     except:
-        return {"seen": {}, "price_map": {}}
+        return {"seen": {}}
 
 def save_memory(data):
     with open(MEMORY_FILE, "w") as f:
@@ -34,27 +34,52 @@ def send(msg):
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
 # -----------------------------
-# ID GENERATOR
+# UNIQUE ID
 # -----------------------------
 def make_id(item):
-    base = item["title"].lower().strip()
-    return hashlib.md5(base.encode()).hexdigest()
+    raw = (item["title"] + item["location"]).lower()
+    return hashlib.md5(raw.encode()).hexdigest()
 
 # -----------------------------
-# DATA
+# INBOX (DATA INPUT LAYER)
 # -----------------------------
-def get_listings():
+def get_incoming_listings():
+    """
+    THIS IS YOUR FUTURE ENTRY POINT.
+
+    Later you will replace this with:
+    - Facebook API
+    - webhook
+    - scraper
+    - database pull
+    """
+
+    # TEMP SIMULATION ONLY
     return [
-        {"title": "Toyota Hilux 2TR Sydney clean ute", "price": 3500, "location": "Sydney NSW", "url": "link1"},
-        {"title": "Toyota Hilux 2TR Sydney clean ute same repost", "price": 3200, "location": "Sydney NSW", "url": "link2"},
-        {"title": "Prado 1GR Newcastle strong engine", "price": 4200, "location": "Newcastle NSW", "url": "link3"},
-        {"title": "BMW broken engine car", "price": 900, "location": "Melbourne VIC", "url": "link4"},
+        {
+            "title": "Toyota Hilux 2TR clean ute Sydney",
+            "price": 3500,
+            "location": "Sydney NSW",
+            "url": "https://facebook.com/item/111"
+        },
+        {
+            "title": "Prado 1GR strong engine Newcastle",
+            "price": 4200,
+            "location": "Newcastle NSW",
+            "url": "https://facebook.com/item/222"
+        },
+        {
+            "title": "BMW broken car Melbourne",
+            "price": 900,
+            "location": "Melbourne VIC",
+            "url": "https://facebook.com/item/333"
+        }
     ]
 
 # -----------------------------
-# MARKET VALUE ESTIMATION
+# MARKET VALUE MODEL (simple baseline)
 # -----------------------------
-def expected_price(title):
+def market_value(title):
     t = title.lower()
 
     if "hilux" in t:
@@ -63,33 +88,34 @@ def expected_price(title):
         return 6500
     if "bmw" in t:
         return 2000
+
     return 4000
 
 # -----------------------------
-# SMART SCORING V11B
+# INTELLIGENCE ENGINE (V11 LOGIC INSIDE)
 # -----------------------------
-def score(item):
+def analyze(item):
     title = item["title"].lower()
     price = item["price"]
 
-    expected = expected_price(title)
-    diff = expected - price
+    expected = market_value(title)
+    gap = expected - price
 
     score = 0
     reasons = []
 
     # VALUE CHECK
-    if diff > 1500:
+    if gap > 2000:
         score += 5
-        reasons.append("🔥 Strong undervalued deal")
-    elif diff > 500:
+        reasons.append("🔥 Extremely undervalued")
+    elif gap > 800:
         score += 3
-        reasons.append("✔ Slightly under market")
+        reasons.append("✔ Under market price")
     else:
         score += 1
-        reasons.append("⚠ Near market price")
+        reasons.append("⚠ Near market value")
 
-    # MODEL QUALITY
+    # MODEL BOOST
     if "hilux" in title or "prado" in title:
         score += 3
         reasons.append("✔ High demand model")
@@ -102,55 +128,42 @@ def score(item):
     return score, reasons
 
 # -----------------------------
-# FUZZY DUPLICATE CHECK
-# -----------------------------
-def is_duplicate(title):
-    for seen in memory["seen"]:
-        if title.lower()[:15] in seen:
-            return True
-    return False
-
-# -----------------------------
-# LOOP
+# PROCESS ENGINE
 # -----------------------------
 def run_cycle():
-    print("V11B RUNNING...")
+    print("V12A RUNNING...")
 
-    items = get_listings()
+    listings = get_incoming_listings()
 
-    for i in items:
-        uid = make_id(i)
+    for item in listings:
+        uid = make_id(item)
 
         if memory["seen"].get(uid):
             continue
 
-        if is_duplicate(i["title"]):
-            print("SKIP DUPLICATE:", i["title"])
+        score, reasons = analyze(item)
+
+        print("ANALYZING:", item["title"], score)
+
+        if score < 5:
             continue
 
-        s, reasons = score(i)
-
-        print("CHECK:", i["title"], s)
-
-        if s < 5:
-            continue
-
-        if s >= 7:
+        if score >= 7:
             tag = "🔥 HIGH PRIORITY DEAL"
         else:
             tag = "👍 GOOD DEAL"
 
         msg = f"""
-{tag} (Score: {s}/10)
+{tag} (Score: {score}/10)
 
-🚗 {i['title']}
-📍 {i['location']}
-💰 ${i['price']}
+🚗 {item['title']}
+📍 {item['location']}
+💰 ${item['price']}
 
 📊 WHY:
 {chr(10).join(reasons)}
 
-🔗 {i['url']}
+🔗 {item['url']}
 ⏰ {datetime.now().strftime('%H:%M:%S')}
 """
 
@@ -164,7 +177,7 @@ def run_cycle():
 # START
 # -----------------------------
 def main():
-    send("🤖 V11B MARKET INTELLIGENCE STARTED")
+    send("🤖 V12A INGESTION ENGINE STARTED")
 
     while True:
         run_cycle()
