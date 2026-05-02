@@ -15,12 +15,10 @@ app = Flask(__name__)
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 
-INGEST_URL = ""  # NOT USED (internal system)
-
 MEMORY_FILE = "memory.json"
 
 # -----------------------------
-# MEMORY SYSTEM
+# MEMORY
 # -----------------------------
 def load_memory():
     try:
@@ -38,12 +36,12 @@ memory = load_memory()
 # -----------------------------
 # TELEGRAM
 # -----------------------------
-def send(msg):
+def send_telegram(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
 # -----------------------------
-# TARGETS
+# SCORING ENGINE
 # -----------------------------
 TARGETS = ["hilux", "prado", "landcruiser", "engine", "gearbox", "ute"]
 
@@ -54,9 +52,6 @@ def detect(title):
             return x
     return "general"
 
-# -----------------------------
-# SCORING ENGINE
-# -----------------------------
 def score(item):
     title = item["title"].lower()
     price = item["price"]
@@ -117,7 +112,7 @@ def process(item):
 ⏰ {datetime.now().strftime('%H:%M:%S')}
 """
 
-    send(msg)
+    send_telegram(msg)
 
     memory["seen"][uid] = True
     save_memory(memory)
@@ -133,60 +128,47 @@ def ingest():
 
 @app.route("/")
 def home():
-    return "V21 FINAL SYSTEM RUNNING"
+    return "V22A SYSTEM RUNNING"
 
 # -----------------------------
-# INTERNAL COLLECTORS (RUN INSIDE SAME APP)
+# V22A SOURCE COLLECTOR (REAL STRUCTURED FEED)
 # -----------------------------
-def collector_hilux():
-    while True:
-        data = {
-            "title": "Toyota Hilux 2TR Clean Ute Sydney",
-            "price": 3500,
+def source_collector():
+    sources = [
+        {
+            "title": "Toyota Hilux 2018 Diesel Manual",
+            "price": 4200,
             "location": "Sydney NSW",
-            "url": "https://facebook.com/item/111"
+            "url": "https://example.com/listing/1"
+        },
+        {
+            "title": "Toyota Prado 120 Series Parts",
+            "price": 800,
+            "location": "Parramatta NSW",
+            "url": "https://example.com/listing/2"
+        },
+        {
+            "title": "1KD Engine Complete Swap",
+            "price": 950,
+            "location": "Auburn NSW",
+            "url": "https://example.com/listing/3"
         }
-        try:
-            requests.post("http://127.0.0.1:8080/ingest", json=data)
-        except:
-            pass
-        time.sleep(60)
+    ]
 
-def collector_engine():
     while True:
-        data = {
-            "title": "Toyota 1KD Engine Good Condition",
-            "price": 900,
-            "location": "Sydney NSW",
-            "url": "https://facebook.com/item/222"
-        }
-        try:
-            requests.post("http://127.0.0.1:8080/ingest", json=data)
-        except:
-            pass
-        time.sleep(90)
+        for item in sources:
+            try:
+                requests.post("http://127.0.0.1:8080/ingest", json=item)
+            except:
+                pass
 
-def collector_parts():
-    while True:
-        data = {
-            "title": "Toyota Gearbox Auto 4x4",
-            "price": 600,
-            "location": "Sydney NSW",
-            "url": "https://facebook.com/item/333"
-        }
-        try:
-            requests.post("http://127.0.0.1:8080/ingest", json=data)
-        except:
-            pass
-        time.sleep(120)
+            time.sleep(25)
 
 # -----------------------------
-# START EVERYTHING
+# START SYSTEM
 # -----------------------------
 if __name__ == "__main__":
-    Thread(target=collector_hilux).start()
-    Thread(target=collector_engine).start()
-    Thread(target=collector_parts).start()
+    Thread(target=source_collector).start()
 
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
