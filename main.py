@@ -1,24 +1,27 @@
 import os
 import requests
-import re
 from datetime import datetime
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 
 # -----------------------------
-# VEHICLE FILTER SYSTEM
+# NSW TARGET AREAS ONLY
 # -----------------------------
-
-KEYWORDS = [
-    "hilux", "prado", "landcruiser", "land cruiser",
-    "hiace", "corolla", "dmax", "isuzu", "ute"
+NSW_LOCATIONS = [
+    "sydney", "parramatta", "auburn", "bankstown",
+    "newcastle", "central coast", "wollongong",
+    "penrith", "liverpool", "blacktown",
+    "tamworth", "armidale", "coffs harbour",
+    "grafton", "wagga", "canberra", "goulburn"
 ]
 
-MISSPELLINGS = [
-    "hilux", "hiluxx", "hilx", "hulx", "hiluks",
-    "prado", "pradoo", "pradooo",
-    "landcruser", "landcruiser", "lc200", "lc300"
+# -----------------------------
+# VEHICLE FILTERS
+# -----------------------------
+KEYWORDS = [
+    "hilux", "prado", "landcruiser", "hiace",
+    "corolla", "dmax", "isuzu", "ute"
 ]
 
 ENGINES = [
@@ -30,9 +33,8 @@ PRICE_MIN = 200
 PRICE_MAX = 18000
 
 # -----------------------------
-# MESSAGE SENDER
+# SEND MESSAGE
 # -----------------------------
-
 def send_message(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     requests.post(url, data={
@@ -41,63 +43,65 @@ def send_message(text):
     })
 
 # -----------------------------
-# SIMPLE AI SCORING
+# NSW FILTER CHECK
 # -----------------------------
+def is_nsw(text):
+    text = text.lower()
+    return any(loc in text for loc in NSW_LOCATIONS)
 
-def score_item(title, price):
-    title_low = title.lower()
+# -----------------------------
+# SCORING ENGINE
+# -----------------------------
+def score_item(title, price, location=""):
+    t = title.lower()
 
     score = 0
 
-    # keyword match
-    if any(k in title_low for k in KEYWORDS):
+    if any(k in t for k in KEYWORDS):
         score += 3
 
-    # engine match
-    if any(e in title_low for e in ENGINES):
+    if any(e in t for e in ENGINES):
         score += 3
 
-    # misspelling boost (we still catch them)
-    if any(m in title_low for m in MISSPELLINGS):
-        score += 2
-
-    # price logic
     if PRICE_MIN <= price <= PRICE_MAX:
         score += 3
     else:
         score -= 2
 
+    if is_nsw(title + " " + location):
+        score += 3
+    else:
+        score -= 3
+
     return score
 
 # -----------------------------
-# FAKE DATA SIMULATOR (V2 STEP)
+# DATA PLACEHOLDER (V4 → real scraper later)
 # -----------------------------
-
 def get_listings():
-    # later we replace this with real Facebook Marketplace scraper
     return [
-        {"title": "Toyota Hilux 2TR manual ute", "price": 3500},
-        {"title": "Prado VX 1GR engine 2006", "price": 4200},
-        {"title": "Hilux hulx workmate rough", "price": 1800},
-        {"title": "BMW broken engine car", "price": 900}
+        {"title": "Hilux 2TR single cab Auburn NSW", "price": 3500, "location": "Sydney"},
+        {"title": "Prado 1GR engine Newcastle", "price": 4200, "location": "Newcastle"},
+        {"title": "Hilux hulx rough Tamworth", "price": 1800, "location": "Tamworth"},
+        {"title": "Ford broken car Melbourne", "price": 900, "location": "Melbourne"}
     ]
 
 # -----------------------------
 # MAIN ENGINE
 # -----------------------------
-
 def main():
     listings = get_listings()
 
     for item in listings:
         title = item["title"]
         price = item["price"]
+        location = item["location"]
 
-        score = score_item(title, price)
+        score = score_item(title, price, location)
 
-        if score >= 6:
-            status = "🔥 HOT DEAL"
-        elif score >= 4:
+        if score >= 7:
+            status = "🔥 HOT NSW DEAL"
+        elif score >= 5:
             status = "👍 GOOD DEAL"
         else:
             continue
@@ -106,6 +110,7 @@ def main():
 {status}
 
 🚗 {title}
+📍 {location}
 💰 ${price}
 📊 Score: {score}
 ⏰ {datetime.now().strftime('%Y-%m-%d %H:%M')}
