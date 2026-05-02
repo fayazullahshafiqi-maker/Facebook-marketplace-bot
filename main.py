@@ -1,174 +1,90 @@
 import os
-import json
-import hashlib
-import requests
-import time
-from datetime import datetime
 from flask import Flask, request
-from threading import Thread
+import requests
+
+from negotiation import calculate_offer, generate_message
 
 app = Flask(__name__)
 
-# -----------------------------
-# CONFIG
-# -----------------------------
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 
-MEMORY_FILE = "memory.json"
+PROFIT_RULES = {
+    "2tr": 5000,
+    "3rz": 4800,
+    "1gr_single": 8000,
+    "1gr_prado": 4000,
+    "1kd_prado": 6000
+}
 
-# -----------------------------
-# MEMORY
-# -----------------------------
-def load_memory():
-    try:
-        with open(MEMORY_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return {"seen": {}, "likes": {}}
-
-def save_memory(data):
-    with open(MEMORY_FILE, "w") as f:
-        json.dump(data, f)
-
-memory = load_memory()
-
-# -----------------------------
-# TELEGRAM
-# -----------------------------
 def send_telegram(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
-# -----------------------------
-# SCORING ENGINE
-# -----------------------------
-TARGETS = ["hilux", "prado", "landcruiser", "engine", "gearbox", "ute"]
+    requests.post(url, data={
+        "chat_id": CHAT_ID,
+        "text": msg
+    })
 
-def detect(title):
+def detect_model(title):
     t = title.lower()
-    for x in TARGETS:
-        if x in t:
-            return x
-    return "general"
 
-def score(item):
-    title = item["title"].lower()
+    if "2tr" in t:
+        return "2tr"
+
+    if "3rz" in t:
+        return "3rz"
+
+    if "1gr" in t and "prado" not in t:
+        return "1gr_single"
+
+    if "1gr" in t and "prado" in t:
+        return "1gr_prado"
+
+    if "1kd" in t:
+        return "1kd_prado"
+
+    return None
+
+@app.route("/ingest", methods=["POST"])
+def ingest():
+
+    item = request.json
+
+    title = item["title"]
     price = item["price"]
+    location = item["location"]
 
-    keyword = detect(title)
+    model = detect_model(title)
 
-    s = 0
-    reasons = []
+    if not model:
+        return {"status": "ignored"}
 
-    if keyword != "general":
-        s += 2
-        reasons.append(f"✔ Match: {keyword}")
-
-    s += memory["likes"].get(keyword, 0)
-
-    if price < 4000:
-        s += 4
-        reasons.append("🔥 Cheap deal")
-    elif price < 7000:
-        s += 2
-        reasons.append("✔ Fair price")
-
-    if "bmw" in title or "mercedes" in title:
-        s -= 2
-        reasons.append("⚠ Luxury risk")
-
-    return s, reasons, keyword
-
-# -----------------------------
-# PROCESS LISTING
-# -----------------------------
-def process(item):
-    uid = hashlib.md5((item["title"] + item["location"]).lower().encode()).hexdigest()
-
-    if memory["seen"].get(uid):
-        return
-
-    s, reasons, keyword = score(item)
-
-    if s < 5:
-        return
-
-    memory["likes"][keyword] = memory["likes"].get(keyword, 0) + 1
-
-    tag = "🔥 HIGH PRIORITY" if s >= 7 else "👍 GOOD DEAL"
+    offer = calculate_offer(price)
 
     msg = f"""
-{tag} ({s}/10)
+🔥 DEAL FOUND
 
-🚗 {item['title']}
-📍 {item['location']}
-💰 ${item['price']}
+🚗 {title}
+📍 {location}
+💰 Listed: ${price}
+🤝 Suggested Offer: ${offer}
 
-📊 WHY:
-{chr(10).join(reasons)}
+📩 MESSAGE:
+{generate_message(title, offer)}
 
-🔗 {item['url']}
-⏰ {datetime.now().strftime('%H:%M:%S')}
+🔗 {item["url"]}
 """
 
     send_telegram(msg)
 
-    memory["seen"][uid] = True
-    save_memory(memory)
-
-# -----------------------------
-# INGEST API
-# -----------------------------
-@app.route("/ingest", methods=["POST"])
-def ingest():
-    data = request.json
-    process(data)
-    return {"status": "ok"}
+    return {"status": "sent"}
 
 @app.route("/")
 def home():
-    return "V22A SYSTEM RUNNING"
+    return "V24 BOT RUNNING"
 
-# -----------------------------
-# V22A SOURCE COLLECTOR (REAL STRUCTURED FEED)
-# -----------------------------
-def source_collector():
-    sources = [
-        {
-            "title": "Toyota Hilux 2018 Diesel Manual",
-            "price": 4200,
-            "location": "Sydney NSW",
-            "url": "https://example.com/listing/1"
-        },
-        {
-            "title": "Toyota Prado 120 Series Parts",
-            "price": 800,
-            "location": "Parramatta NSW",
-            "url": "https://example.com/listing/2"
-        },
-        {
-            "title": "1KD Engine Complete Swap",
-            "price": 950,
-            "location": "Auburn NSW",
-            "url": "https://example.com/listing/3"
-        }
-    ]
-
-    while True:
-        for item in sources:
-            try:
-                requests.post("http://127.0.0.1:8080/ingest", json=item)
-            except:
-                pass
-
-            time.sleep(25)
-
-# -----------------------------
-# START SYSTEM
-# -----------------------------
 if __name__ == "__main__":
-    Thread(target=source_collector).start()
 
     port = int(os.environ.get("PORT", 8080))
+
     app.run(host="0.0.0.0", port=port)
