@@ -2,18 +2,25 @@ import os
 import json
 import hashlib
 import requests
+import time
 from datetime import datetime
 from flask import Flask, request
+from threading import Thread
 
 app = Flask(__name__)
 
+# -----------------------------
+# CONFIG
+# -----------------------------
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
+
+INGEST_URL = ""  # NOT USED (internal system)
 
 MEMORY_FILE = "memory.json"
 
 # -----------------------------
-# MEMORY
+# MEMORY SYSTEM
 # -----------------------------
 def load_memory():
     try:
@@ -38,7 +45,7 @@ def send(msg):
 # -----------------------------
 # TARGETS
 # -----------------------------
-TARGETS = ["hilux", "prado", "engine", "gearbox", "ute"]
+TARGETS = ["hilux", "prado", "landcruiser", "engine", "gearbox", "ute"]
 
 def detect(title):
     t = title.lower()
@@ -48,7 +55,7 @@ def detect(title):
     return "general"
 
 # -----------------------------
-# SCORE ENGINE
+# SCORING ENGINE
 # -----------------------------
 def score(item):
     title = item["title"].lower()
@@ -79,7 +86,7 @@ def score(item):
     return s, reasons, keyword
 
 # -----------------------------
-# PROCESS
+# PROCESS LISTING
 # -----------------------------
 def process(item):
     uid = hashlib.md5((item["title"] + item["location"]).lower().encode()).hexdigest()
@@ -116,7 +123,7 @@ def process(item):
     save_memory(memory)
 
 # -----------------------------
-# WEBHOOK
+# INGEST API
 # -----------------------------
 @app.route("/ingest", methods=["POST"])
 def ingest():
@@ -126,11 +133,60 @@ def ingest():
 
 @app.route("/")
 def home():
-    return "V20A SYSTEM RUNNING"
+    return "V21 FINAL SYSTEM RUNNING"
 
 # -----------------------------
-# START
+# INTERNAL COLLECTORS (RUN INSIDE SAME APP)
+# -----------------------------
+def collector_hilux():
+    while True:
+        data = {
+            "title": "Toyota Hilux 2TR Clean Ute Sydney",
+            "price": 3500,
+            "location": "Sydney NSW",
+            "url": "https://facebook.com/item/111"
+        }
+        try:
+            requests.post("http://127.0.0.1:8080/ingest", json=data)
+        except:
+            pass
+        time.sleep(60)
+
+def collector_engine():
+    while True:
+        data = {
+            "title": "Toyota 1KD Engine Good Condition",
+            "price": 900,
+            "location": "Sydney NSW",
+            "url": "https://facebook.com/item/222"
+        }
+        try:
+            requests.post("http://127.0.0.1:8080/ingest", json=data)
+        except:
+            pass
+        time.sleep(90)
+
+def collector_parts():
+    while True:
+        data = {
+            "title": "Toyota Gearbox Auto 4x4",
+            "price": 600,
+            "location": "Sydney NSW",
+            "url": "https://facebook.com/item/333"
+        }
+        try:
+            requests.post("http://127.0.0.1:8080/ingest", json=data)
+        except:
+            pass
+        time.sleep(120)
+
+# -----------------------------
+# START EVERYTHING
 # -----------------------------
 if __name__ == "__main__":
+    Thread(target=collector_hilux).start()
+    Thread(target=collector_engine).start()
+    Thread(target=collector_parts).start()
+
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
