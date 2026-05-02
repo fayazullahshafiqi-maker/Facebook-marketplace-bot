@@ -43,18 +43,23 @@ def save_memory(data):
 memory = load_memory()
 
 # -----------------------------
-# TELEGRAM
-# -----------------------------
-def send(msg):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
-
-# -----------------------------
 # UNIQUE ID
 # -----------------------------
 def make_id(item):
     raw = item["title"] + item["location"]
     return hashlib.md5(raw.encode()).hexdigest()
+
+# -----------------------------
+# TELEGRAM PHOTO SENDER
+# -----------------------------
+def send_photo(item, caption):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
+    requests.post(url, data={
+        "chat_id": CHAT_ID,
+        "photo": item["image"],
+        "caption": caption,
+        "parse_mode": "HTML"
+    })
 
 # -----------------------------
 # LOCATION CHECK
@@ -76,7 +81,7 @@ def check_price_drop(uid, price):
     return False, 0
 
 # -----------------------------
-# SCORING ENGINE (UNCHANGED)
+# SCORING ENGINE
 # -----------------------------
 def score(item):
     text = item["title"].lower()
@@ -104,41 +109,41 @@ def score(item):
     return s
 
 # -----------------------------
-# V9 DATA LAYER (WITH URL)
+# DATA LAYER (WITH IMAGES)
 # -----------------------------
-def ingest_data(source="simulated_v9"):
+def ingest_data():
     return [
         {
-            "id": "1",
             "title": "Hilux 2TR manual Sydney ute",
             "price": 3500,
             "location": "Sydney NSW",
             "url": "https://www.facebook.com/marketplace/item/111",
-            "source": source
+            "image": "https://via.placeholder.com/600x400.png?text=Hilux+Sydney",
+            "source": "simulated_v10"
         },
         {
-            "id": "2",
             "title": "Prado 1GR Newcastle clean",
             "price": 4200,
             "location": "Newcastle NSW",
             "url": "https://www.facebook.com/marketplace/item/222",
-            "source": source
+            "image": "https://via.placeholder.com/600x400.png?text=Prado+Newcastle",
+            "source": "simulated_v10"
         },
         {
-            "id": "3",
-            "title": "Hilux rough Canberra ute",
+            "title": "Hilux Canberra rough ute",
             "price": 1800,
             "location": "Canberra ACT",
             "url": "https://www.facebook.com/marketplace/item/333",
-            "source": source
+            "image": "https://via.placeholder.com/600x400.png?text=Hilux+Canberra",
+            "source": "simulated_v10"
         },
         {
-            "id": "4",
             "title": "BMW broken car Melbourne",
             "price": 900,
             "location": "Melbourne VIC",
             "url": "https://www.facebook.com/marketplace/item/444",
-            "source": source
+            "image": "https://via.placeholder.com/600x400.png?text=BMW+Melbourne",
+            "source": "simulated_v10"
         }
     ]
 
@@ -167,21 +172,22 @@ def run_cycle():
 
         extra = ""
         if dropped:
-            extra = f"\n📉 PRICE DROPPED: -${amount}"
+            extra = f"<b>📉 PRICE DROPPED: -${amount}</b>\n"
 
-        msg = f"""
-{tag}{extra}
+        caption = f"""
+<b>{tag}</b>
 
+{extra}
 🚗 {i['title']}
 📍 {i['location']}
 💰 ${i['price']}
-🔗 {i['url']}
 📊 Score: {s}
-🌐 Source: {i['source']}
+
+🔗 {i['url']}
 ⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
 
-        send(msg)
+        send_photo(i, caption)
 
         memory["seen"][uid] = True
 
@@ -191,7 +197,12 @@ def run_cycle():
 # LOOP
 # -----------------------------
 def main():
-    send("🤖 V9 Started (HTTPS Link System Enabled)")
+    send_photo(
+        {
+            "image": "https://via.placeholder.com/600x400.png?text=Bot+Started"
+        },
+        "🤖 V10 Started (Image + Link System Enabled)"
+    )
 
     while True:
         run_cycle()
