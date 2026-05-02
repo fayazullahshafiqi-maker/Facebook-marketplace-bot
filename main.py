@@ -148,7 +148,7 @@ def simulator():
 
         try:
             requests.post(
-                f"https://{BASE_URL}/ingest",
+                "http://127.0.0.1:8080/ingest",
                 json=listing,
                 timeout=10
             )
@@ -159,10 +159,6 @@ def simulator():
             print("SIMULATOR ERROR:", e)
 
         time.sleep(60)
-
-# -----------------------------
-# START
-# -----------------------------
 if __name__ == "__main__":
     threading.Thread(target=simulator, daemon=True).start()
 
