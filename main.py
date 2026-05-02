@@ -27,7 +27,7 @@ PRICE_MIN = 200
 PRICE_MAX = 18000
 
 # -----------------------------
-# LOAD MEMORY (PERSISTENT)
+# MEMORY SYSTEM (PERSISTENT)
 # -----------------------------
 def load_memory():
     try:
@@ -64,11 +64,10 @@ def is_valid_location(text):
     return any(loc in t for loc in LOCATIONS)
 
 # -----------------------------
-# PRICE DROP CHECK (PERSISTENT)
+# PRICE DROP CHECK
 # -----------------------------
 def check_price_drop(uid, price):
     old_price = memory["prices"].get(uid)
-
     memory["prices"][uid] = price
 
     if old_price and price < old_price:
@@ -77,7 +76,7 @@ def check_price_drop(uid, price):
     return False, 0
 
 # -----------------------------
-# SCORING ENGINE
+# SCORING ENGINE (UNCHANGED)
 # -----------------------------
 def score(item):
     text = item["title"].lower()
@@ -105,26 +104,33 @@ def score(item):
     return s
 
 # -----------------------------
-# SIMULATED DATA (V7 PLACEHOLDER)
+# V8 DATA LAYER (NEW STRUCTURE)
 # -----------------------------
-def get_listings():
-    return [
-        {"title": "Hilux 2TR manual Sydney ute", "price": 3500, "location": "Sydney NSW"},
-        {"title": "Prado 1GR Newcastle clean", "price": 4200, "location": "Newcastle NSW"},
-        {"title": "Hilux hulx rough Canberra", "price": 1800, "location": "Canberra ACT"},
-        {"title": "BMW broken car Melbourne", "price": 900, "location": "Melbourne VIC"}
+def ingest_data(source="local"):
+    """
+    V8: unified data input layer
+    Later we plug real Marketplace/API/feeds here
+    """
+
+    # SIMULATED DATA (still same for now)
+    raw_data = [
+        {"title": "Hilux 2TR manual Sydney ute", "price": 3500, "location": "Sydney NSW", "source": source},
+        {"title": "Prado 1GR Newcastle clean", "price": 4200, "location": "Newcastle NSW", "source": source},
+        {"title": "Hilux hulx rough Canberra", "price": 1800, "location": "Canberra ACT", "source": source},
+        {"title": "BMW broken car Melbourne", "price": 900, "location": "Melbourne VIC", "source": source}
     ]
+
+    return raw_data
 
 # -----------------------------
 # MAIN ENGINE
 # -----------------------------
 def run_cycle():
-    items = get_listings()
+    items = ingest_data("simulated_v8")
 
     for i in items:
         uid = make_id(i)
 
-        # skip duplicates (persistent)
         if memory["seen"].get(uid):
             continue
 
@@ -137,7 +143,6 @@ def run_cycle():
         else:
             continue
 
-        # price drop logic
         dropped, amount = check_price_drop(uid, i["price"])
 
         extra = ""
@@ -151,12 +156,12 @@ def run_cycle():
 📍 {i['location']}
 💰 ${i['price']}
 📊 Score: {s}
+🌐 Source: {i.get('source')}
 ⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
 
         send(msg)
 
-        # save memory
         memory["seen"][uid] = True
 
     save_memory(memory)
@@ -165,7 +170,7 @@ def run_cycle():
 # LOOP
 # -----------------------------
 def main():
-    send("🤖 V7 Started (Persistent Memory Enabled)")
+    send("🤖 V8 Started (Data Layer Ready for Real Marketplace)")
 
     while True:
         run_cycle()
