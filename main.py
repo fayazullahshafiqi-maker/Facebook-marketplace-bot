@@ -2,8 +2,8 @@ import os
 import json
 import hashlib
 import requests
-import threading
 import time
+import threading
 from datetime import datetime
 from flask import Flask, request
 
@@ -12,11 +12,21 @@ app = Flask(__name__)
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 
-# IMPORTANT:
-# Replace with your Railway public URL later if needed
-BASE_URL = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
-
 MEMORY_FILE = "memory.json"
+
+# -----------------------------
+# TARGET SYSTEM (V15A CORE)
+# -----------------------------
+TARGETS = [
+    "hilux",
+    "prado",
+    "landcruiser",
+    "dmax",
+    "triton",
+    "ute",
+    "engine",
+    "gearbox"
+]
 
 # -----------------------------
 # MEMORY
@@ -39,48 +49,61 @@ memory = load_memory()
 # -----------------------------
 def send(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-
-    requests.post(url, data={
-        "chat_id": CHAT_ID,
-        "text": msg
-    })
+    requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
 # -----------------------------
 # ID
 # -----------------------------
 def make_id(item):
-    raw = (item["title"] + item["location"]).lower()
-    return hashlib.md5(raw.encode()).hexdigest()
+    return hashlib.md5((item["title"] + item["location"]).lower().encode()).hexdigest()
 
 # -----------------------------
-# SCORING
+# V15A SMART SCORING ENGINE
 # -----------------------------
 def score(item):
     title = item["title"].lower()
     price = item["price"]
 
-    s = 0
+    score = 0
     reasons = []
 
-    if "hilux" in title or "prado" in title:
-        s += 4
-        reasons.append("✔ High demand model")
+    # -------------------------
+    # TARGET MATCHING
+    # -------------------------
+    matched = False
+    for t in TARGETS:
+        if t in title:
+            score += 3
+            reasons.append(f"✔ Target match: {t}")
+            matched = True
 
+    if not matched:
+        score -= 2
+        reasons.append("⚠ No target match")
+
+    # -------------------------
+    # PRICE LOGIC
+    # -------------------------
     if price < 4000:
-        s += 4
-        reasons.append("🔥 Under market price")
+        score += 4
+        reasons.append("🔥 Very cheap deal")
     elif price < 7000:
-        s += 2
-        reasons.append("✔ Fair deal")
+        score += 2
+        reasons.append("✔ Fair price")
+    else:
+        reasons.append("⚠ High price")
 
-    if "bmw" in title:
-        s -= 2
-        reasons.append("⚠ Risk vehicle")
+    # -------------------------
+    # RISK FILTER
+    # -------------------------
+    if "bmw" in title or "mercedes" in title:
+        score -= 2
+        reasons.append("⚠ Luxury risk vehicle")
 
-    return s, reasons
+    return score, reasons
 
 # -----------------------------
-# PROCESS
+# PROCESS LISTING
 # -----------------------------
 def process(item):
     uid = make_id(item)
@@ -93,8 +116,13 @@ def process(item):
     if s < 5:
         return
 
+    if s >= 7:
+        tag = "🔥 HIGH PRIORITY DEAL"
+    else:
+        tag = "👍 GOOD DEAL"
+
     msg = f"""
-🔥 LIVE DEAL ALERT ({s}/10)
+{tag} ({s}/10)
 
 🚗 {item['title']}
 📍 {item['location']}
@@ -118,7 +146,6 @@ def process(item):
 @app.route("/ingest", methods=["POST"])
 def ingest():
     data = request.json
-
     print("RECEIVED:", data)
 
     process(data)
@@ -130,10 +157,10 @@ def ingest():
 # -----------------------------
 @app.route("/")
 def home():
-    return "V14A LIVE INGESTION ENGINE ACTIVE"
+    return "V15A TARGET SYSTEM RUNNING"
 
 # -----------------------------
-# LIVE INGESTION SIMULATOR
+# SIMULATOR (TESTING ONLY)
 # -----------------------------
 def simulator():
     time.sleep(10)
@@ -152,16 +179,18 @@ def simulator():
                 json=listing,
                 timeout=10
             )
-
             print("SIMULATED LISTING SENT")
 
         except Exception as e:
-            print("SIMULATOR ERROR:", e)
+            print("ERROR:", e)
 
         time.sleep(60)
+
+# -----------------------------
+# START SERVER
+# -----------------------------
 if __name__ == "__main__":
     threading.Thread(target=simulator, daemon=True).start()
 
     port = int(os.environ.get("PORT", 8080))
-
     app.run(host="0.0.0.0", port=port)
