@@ -18,7 +18,7 @@ def load_memory():
         with open(MEMORY_FILE, "r") as f:
             return json.load(f)
     except:
-        return {"seen": {}, "prices": {}}
+        return {"seen": {}}
 
 def save_memory(data):
     with open(MEMORY_FILE, "w") as f:
@@ -27,20 +27,15 @@ def save_memory(data):
 memory = load_memory()
 
 # -----------------------------
-# TELEGRAM
+# TELEGRAM (TEXT ONLY - SAFE)
 # -----------------------------
-def send_photo(item, caption):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
+def send_message(text):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     r = requests.post(url, data={
         "chat_id": CHAT_ID,
-        "photo": item["image"],
-        "caption": caption
+        "text": text
     })
-    print(r.text)
-
-def send_text(msg):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+    print("SEND:", r.text)
 
 # -----------------------------
 # ID
@@ -57,54 +52,36 @@ def get_listings():
             "title": "Hilux 2TR Sydney ute clean",
             "price": 3500,
             "location": "Sydney NSW",
-            "url": "https://www.facebook.com/marketplace/item/111",
-            "image": "https://via.placeholder.com/600x400.png?text=Hilux+Sydney"
+            "url": "https://www.facebook.com/marketplace/item/111"
         },
         {
             "title": "Prado 1GR Newcastle strong",
             "price": 4200,
             "location": "Newcastle NSW",
-            "url": "https://www.facebook.com/marketplace/item/222",
-            "image": "https://via.placeholder.com/600x400.png?text=Prado+Newcastle"
+            "url": "https://www.facebook.com/marketplace/item/222"
         },
         {
             "title": "Hilux Canberra rough ute",
             "price": 1800,
             "location": "Canberra ACT",
-            "url": "https://www.facebook.com/marketplace/item/333",
-            "image": "https://via.placeholder.com/600x400.png?text=Hilux+Canberra"
+            "url": "https://www.facebook.com/marketplace/item/333"
         }
     ]
 
 # -----------------------------
-# SCORE (SIMPLIFIED so it WORKS)
+# SIMPLE SCORE (FOR TESTING)
 # -----------------------------
 def score(item):
-    price = item["price"]
-
-    if price < 5000:
+    if item["price"] < 5000:
         return 8
-    elif price < 8000:
-        return 6
-    else:
-        return 4
+    return 5
 
 # -----------------------------
-# PRICE DROP CHECK
-# -----------------------------
-def check_price_drop(uid, price):
-    old = memory["prices"].get(uid)
-    memory["prices"][uid] = price
-
-    if old and price < old:
-        return True, old - price
-
-    return False, 0
-
-# -----------------------------
-# MAIN LOOP
+# LOOP
 # -----------------------------
 def run_cycle():
+    print("RUNNING CYCLE...")
+
     items = get_listings()
 
     for i in items:
@@ -115,21 +92,15 @@ def run_cycle():
 
         s = score(i)
 
-        # IMPORTANT: LOWERED THRESHOLD so you SEE results
-        if s >= 4:
+        print("FOUND:", i["title"], "score:", s)
+
+        if s >= 5:
             tag = "🔥 DEAL ALERT"
         else:
             continue
 
-        dropped, amount = check_price_drop(uid, i["price"])
-
-        extra = ""
-        if dropped:
-            extra = f"\n📉 PRICE DROPPED: -${amount}"
-
-        caption = f"""
-<b>{tag}</b>
-{extra}
+        msg = f"""
+{tag}
 
 🚗 {i['title']}
 📍 {i['location']}
@@ -140,21 +111,21 @@ def run_cycle():
 ⏰ {datetime.now().strftime('%H:%M:%S')}
 """
 
-        send_photo(i, caption)
+        send_message(msg)
 
         memory["seen"][uid] = True
 
     save_memory(memory)
 
 # -----------------------------
-# STARTUP + LOOP
+# START
 # -----------------------------
 def main():
-    send_text("🤖 V10 Running (FIXED + Guaranteed Output Mode)")
+    send_message("🤖 C10 CLEAN MODE STARTED (TEXT + LINK ONLY)")
 
     while True:
         run_cycle()
-        time.sleep(60)
+        time.sleep(30)
 
 if __name__ == "__main__":
     main()
