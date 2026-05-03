@@ -18,13 +18,3 @@ def save_memory(memory):
         json.dump(memory, f, indent=2)
 
 memory = load_memory()
-
-def store_result(model, offer, result):
-    memory["offers"].setdefault(model, [])
-
-    memory["offers"][model].append({
-        "offer": offer,
-        "result": result
-    })
-
-    save_memory(memory)
