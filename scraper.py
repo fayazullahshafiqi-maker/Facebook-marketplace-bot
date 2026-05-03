@@ -1,15 +1,7 @@
-def scrape_marketplace():
-    return [
-        {
-            "title": "Test Prado",
-            "price": 20000,
-            "location": "Sydney",
-            "url": "https://example.com"
-        }
-    ]
+from playwright.sync_api import sync_playwright
 import time
 
-KEYWORDS = ["prado", "hilux", "landcruiser"]
+KEYWORDS = ["prado", "hilux", "hiace", "dmax"]
 
 def scrape_marketplace():
     results = []
@@ -20,33 +12,37 @@ def scrape_marketplace():
 
         page = context.new_page()
 
-        # NOTE: You MUST already be logged in via cookies/session
-        page.goto("https://www.facebook.com/marketplace")
-
-        time.sleep(5)
-
         for keyword in KEYWORDS:
-            search_url = f"https://www.facebook.com/marketplace/sydney/search?query={keyword}"
-            page.goto(search_url)
+            print(f"🔍 Searching: {keyword}")
+
+            url = f"https://www.facebook.com/marketplace/sydney/search?query={keyword}"
+            page.goto(url)
             time.sleep(5)
 
             # scroll to load listings
             for _ in range(3):
-                page.mouse.wheel(0, 2000)
+                page.mouse.wheel(0, 2500)
                 time.sleep(2)
 
             cards = page.query_selector_all("div[role='article']")
 
             for card in cards[:10]:
                 try:
-                    title = card.inner_text().split("\n")[0]
+                    text = card.inner_text().split("\n")
+
+                    title = text[0] if text else "Unknown"
+
+                    link_el = card.query_selector("a")
+                    link = "https://facebook.com" + link_el.get_attribute("href") if link_el else page.url
 
                     results.append({
                         "title": title,
                         "price": None,
                         "location": "Sydney",
-                        "url": page.url
+                        "url": link,
+                        "source": "facebook"
                     })
+
                 except:
                     continue
 
