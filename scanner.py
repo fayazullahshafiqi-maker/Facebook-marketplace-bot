@@ -1,42 +1,36 @@
-import time
-import random
+import os
 import requests
+from scraper import scrape_marketplace
 
-INGEST_URL = "https://facebook-marketplace-bot-production-f538.up.railway.app"
+# Railway will inject PORT automatically (keep for safety if you expand later)
+PORT = int(os.environ.get("PORT", 8000))
 
-KEYWORDS = [
-    "Hilux 2TR single cab manual",
-    "Hilux 3RZ single cab",
-    "1GR Landcruiser single cab",
-    "1KD Prado",
-    "1GR Prado"
-]
+# Your Railway ingest URL (IMPORTANT: must include https://)
+INGEST_URL = os.environ.get(
+    "INGEST_URL",
+    "https://facebook-marketplace-bot-production-f538.up.railway.app"
+)
 
-LOCATIONS = [
-    "Sydney NSW",
-    "Parramatta NSW",
-    "Auburn NSW",
-    "Canberra ACT"
-]
+def send_to_ingest(item):
+    try:
+        response = requests.post(INGEST_URL, json=item, timeout=10)
+        print("SENT:", item, "STATUS:", response.status_code)
+    except Exception as e:
+        print("FAILED TO SEND:", item, "ERROR:", str(e))
 
-def generate_listing(keyword):
-    return {
-        "title": keyword,
-        "price": random.randint(2000, 9000),
-        "location": random.choice(LOCATIONS),
-        "url": "https://example.com/listing"
-    }
 
-while True:
-    for kw in KEYWORDS:
+def run_scanner():
+    print("🚀 Starting Marketplace Scanner...")
 
-        listing = generate_listing(kw)
+    listings = scrape_marketplace()
 
-        try:
-            requests.post(INGEST_URL, json=listing)
-            print("SENT:", listing)
+    if not listings:
+        print("⚠️ No listings found")
+        return
 
-        except Exception as e:
-            print("ERROR:", e)
+    for item in listings:
+        send_to_ingest(item)
 
-        time.sleep(15)
+
+if __name__ == "__main__":
+    run_scanner()
