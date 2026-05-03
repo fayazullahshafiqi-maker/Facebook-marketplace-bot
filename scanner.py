@@ -2,7 +2,7 @@ import time
 import random
 import requests
 
-INGEST_URL = "facebook-marketplace-bot-production-f538.up.railway.app"
+INGEST_URL = "https://facebook-marketplace-bot-production-f538.up.railway.app"
 
 KEYWORDS = [
     "Hilux 2TR single cab manual",
