@@ -1,4 +1,12 @@
-from playwright.sync_api import sync_playwright
+def scrape_marketplace():
+    return [
+        {
+            "title": "Test Prado",
+            "price": 20000,
+            "location": "Sydney",
+            "url": "https://example.com"
+        }
+    ]
 import time
 
 KEYWORDS = ["prado", "hilux", "landcruiser"]
