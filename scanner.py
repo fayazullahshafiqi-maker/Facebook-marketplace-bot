@@ -2,35 +2,37 @@ import os
 import requests
 from scraper import scrape_marketplace
 
-# Railway will inject PORT automatically (keep for safety if you expand later)
-PORT = int(os.environ.get("PORT", 8000))
-
-# Your Railway ingest URL (IMPORTANT: must include https://)
 INGEST_URL = os.environ.get(
     "INGEST_URL",
     "https://facebook-marketplace-bot-production-f538.up.railway.app"
 )
 
-def send_to_ingest(item):
+def send(item):
     try:
-        response = requests.post(INGEST_URL, json=item, timeout=10)
-        print("SENT:", item, "STATUS:", response.status_code)
+        r = requests.post(INGEST_URL, json=item, timeout=10)
+        print("SENT:", item, "STATUS:", r.status_code)
     except Exception as e:
-        print("FAILED TO SEND:", item, "ERROR:", str(e))
+        print("SEND FAILED:", item, "ERROR:", str(e))
 
 
-def run_scanner():
-    print("🚀 Starting Marketplace Scanner...")
+def run():
+    print("🚀 Scanner starting...")
 
-    listings = scrape_marketplace()
+    try:
+        listings = scrape_marketplace()
+    except Exception as e:
+        print("SCRAPER ERROR:", str(e))
+        return
 
     if not listings:
         print("⚠️ No listings found")
         return
 
     for item in listings:
-        send_to_ingest(item)
+        send(item)
+
+    print("✅ Scan complete")
 
 
 if __name__ == "__main__":
-    run_scanner()
+    run()
