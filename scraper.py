@@ -11,7 +11,7 @@ def scrape_marketplace():
     results = []
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=False, slow_mo=50)
         context = browser.new_context(storage_state="state.json")
         page = context.new_page()
 
