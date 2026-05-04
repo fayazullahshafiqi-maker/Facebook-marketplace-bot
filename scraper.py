@@ -32,26 +32,32 @@ def scrape_marketplace():
             url = f"https://www.facebook.com/marketplace/sydney/search?query={keyword.replace(' ', '%20')}"
 
             page.goto(url, timeout=60000)
-            page.wait_for_timeout(5000)
+            page.wait_for_timeout(8000)
 
-            # TEMP simple extraction (we improve later)
-            items = page.query_selector_all("div")
+            # Scroll to load listings
+            page.mouse.wheel(0, 3000)
+            page.wait_for_timeout(3000)
 
-            for item in items[:10]:
+            page.mouse.wheel(0, 6000)
+            page.wait_for_timeout(3000)
+
+            # Try to capture listing links
+            items = page.query_selector_all("a")
+
+            for item in items[:30]:
                 try:
                     text = item.inner_text()
 
                     if not text:
                         continue
 
-                    # basic filter (we refine in next step)
                     if any(k.lower() in text.lower() for k in KEYWORDS):
 
                         results.append({
                             "title": text[:120],
                             "price": 0,
                             "location": "NSW",
-                            "url": page.url
+                            "url": "https://facebook.com" + (item.get_attribute("href") or "")
                         })
 
                 except:
