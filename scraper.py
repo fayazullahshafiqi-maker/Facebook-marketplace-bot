@@ -1,30 +1,50 @@
 from playwright.sync_api import sync_playwright
 import re
+import hashlib
+import time
 
 KEYWORDS = [
-    "toyota rav4",
-    "rav4",
-    "toyota kluger",
-    "kluger",
-    "toyota prado",
-    "prado",
-    "toyota hilux",
-    "hilux",
-    "isuzu d-max",
-    "dmax",
-    "d-max",
-    "toyota hiace",
-    "hiace"
+    "toyota rav4", "rav4",
+    "toyota kluger", "kluger",
+    "toyota prado", "prado",
+    "toyota hilux", "hilux",
+    "isuzu d-max", "dmax", "d-max",
+    "toyota hiace", "hiace"
+]
+
+BLOCK_WORDS = [
+    "Log in", "Forgotten account", "Marketplace",
+    "Create new listing", "Filters", "Notify Me",
+    "Sydney, Australia"
 ]
 
 
 def clean_text(text):
-    text = text.replace("\n", " ").strip()
-    text = re.sub(r"\s+", " ", text)
+    text = text.replace("\n", " ")
+    text = re.sub(r"\s+", " ", text).strip()
     return text
 
 
-def scrape_marketplace():
+def is_noise(text):
+    return any(b.lower() in text.lower() for b in BLOCK_WORDS)
+
+
+def make_id(text):
+    return hashlib.md5(text.encode()).hexdigest()
+
+
+def extract_price(text):
+    match = re.search(r"\$[\d,]+", text)
+    return match.group(0) if match else "N/A"
+
+
+def extract_url(text):
+    # fallback URL extraction if Facebook hides hrefs
+    match = re.search(r"https?://[^\s]+", text)
+    return match.group(0) if match else "https://facebook.com"
+
+
+def scrape_marketplace(headless=False):
 
     results = []
     seen = set()
@@ -32,106 +52,81 @@ def scrape_marketplace():
     with sync_playwright() as p:
 
         browser = p.chromium.launch(
-            headless=False,
-            args=[
-                "--disable-blink-features=AutomationControlled"
-            ]
+            headless=headless,
+            args=["--disable-blink-features=AutomationControlled"]
         )
 
         context = browser.new_context(
             viewport={"width": 1280, "height": 900},
-            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136 Safari/537.36"
         )
 
         page = context.new_page()
-
-        page.set_default_timeout(30000)
+        page.set_default_timeout(60000)
 
         for keyword in KEYWORDS:
 
-            print(f"\nSearching: {keyword}")
+            print(f"\n🔍 Searching: {keyword}")
+
+            url = f"https://www.facebook.com/marketplace/sydney/search?query={keyword.replace(' ', '%20')}"
 
             try:
+                page.goto(url, wait_until="domcontentloaded")
+                page.wait_for_timeout(6000)
 
-                url = f"https://www.facebook.com/marketplace/sydney/search?query={keyword.replace(' ', '%20')}"
-
-                page.goto(url)
-
-                page.wait_for_timeout(7000)
-
-                # scroll page slowly
-                for _ in range(4):
-
+                # scroll slowly to load listings
+                for _ in range(5):
                     page.mouse.wheel(0, 6000)
+                    page.wait_for_timeout(2000)
 
-                    page.wait_for_timeout(2500)
-
-                # listing links
-                cards = page.locator('a[href*="/marketplace/item/"]')
+                # REAL marketplace containers
+                cards = page.locator('div[role="article"]')
 
                 count = cards.count()
-
-                print(f"Found {count} listings")
+                print(f"📦 Found {count} containers")
 
                 for i in range(count):
 
                     try:
-
                         card = cards.nth(i)
+                        text = clean_text(card.inner_text(timeout=3000))
 
-                        text = clean_text(card.inner_text())
-
-                        href = card.get_attribute("href")
-
-                        if not href:
+                        if len(text) < 20:
                             continue
 
-                        if href in seen:
+                        if is_noise(text):
                             continue
 
-                        if len(text) < 15:
+                        item_id = make_id(text)
+
+                        if item_id in seen:
                             continue
 
-                        seen.add(href)
+                        seen.add(item_id)
 
-                        if href.startswith("/"):
-                            href = "https://www.facebook.com" + href
-
-                        # extract price
-                        price = "N/A"
-
-                        match = re.search(r"\$[\d,]+", text)
-
-                        if match:
-                            price = match.group(0)
+                        price = extract_price(text)
+                        url = extract_url(text)
 
                         result = {
                             "title": text[:200],
                             "price": price,
                             "location": "NSW",
-                            "url": href
+                            "url": url
                         }
 
-                        print(result)
-
+                        print("✔", result)
                         results.append(result)
 
                         if len(results) >= 50:
-
                             browser.close()
-
                             return results
 
                     except Exception as e:
-
                         print("Card error:", e)
-
                         continue
 
             except Exception as e:
-
                 print("Search error:", e)
-
                 continue
 
         browser.close()
@@ -141,10 +136,9 @@ def scrape_marketplace():
 
 if __name__ == "__main__":
 
-    data = scrape_marketplace()
+    data = scrape_marketplace(headless=False)
 
     print("\nFINAL RESULTS:\n")
 
     for item in data:
         print(item)
-
