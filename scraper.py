@@ -1,4 +1,3 @@
-```python
 from playwright.sync_api import sync_playwright
 import re
 
@@ -148,4 +147,4 @@ if __name__ == "__main__":
 
     for item in data:
         print(item)
-```
+
