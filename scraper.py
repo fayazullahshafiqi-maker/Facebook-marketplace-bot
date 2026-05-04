@@ -3,76 +3,96 @@ import re
 
 KEYWORDS = [
     "toyota rav4",
+    "rav4",
     "toyota kluger",
+    "kluger",
     "toyota prado",
+    "prado",
     "toyota hilux",
+    "hilux",
     "isuzu d-max",
-    "toyota hiace"
+    "dmax",
+    "d-max",
+    "toyota hiace",
+    "hiace"
 ]
 
+
 def scrape_marketplace():
+
     results = []
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
 
-        context = browser.new_context(storage_state="state.json")
-        page = context.new_page()
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--disable-blink-features=AutomationControlled"]
+        )
+
+        page = browser.new_page()
+
+        page.set_default_timeout(120000)
 
         for keyword in KEYWORDS:
 
-            url = f"https://www.facebook.com/marketplace/sydney/search?query={keyword.replace(' ', '%20')}"
+            try:
 
-            page.goto(url, timeout=60000)
-            page.wait_for_timeout(10000)
+                print(f"Searching: {keyword}")
 
-            for _ in range(3):
-                page.mouse.wheel(0, 5000)
-                page.wait_for_timeout(2000)
+                url = f"https://www.facebook.com/marketplace/sydney/search?query={keyword.replace(' ', '%20')}"
 
-            listings = page.locator('a[href*="/marketplace/item"]').all()
+                page.goto(url)
 
-            for listing in listings:
-                try:
-                    text = listing.inner_text()
+                # wait longer for Facebook
+                page.wait_for_timeout(15000)
+
+                # scroll multiple times
+                for _ in range(5):
+                    page.mouse.wheel(0, 8000)
+                    page.wait_for_timeout(4000)
+
+                body_text = page.locator("body").inner_text()
+
+                lines = body_text.split("\n")
+
+                for line in lines:
+
+                    text = line.strip()
 
                     if not text:
                         continue
 
-                    if "AU$" not in text:
-                        continue
+                    # find price lines
+                    if re.search(r"AU\\$\\d+", text):
 
-                    lines = text.split("\n")
+                        results.append({
+                            "title": text[:200],
+                            "price": 0,
+                            "location": "NSW",
+                            "url": url
+                        })
 
-                    title = ""
-                    price = 0
-                    location = "NSW"
+                print(f"Collected: {len(results)} listings")
 
-                    for line in lines:
-                        if "AU$" in line:
-                            price_match = re.findall(r'\d[\d,]*', line)
+            except Exception as e:
 
-                            if price_match:
-                                price = int(price_match[0].replace(",", ""))
+                print(f"Error with {keyword}: {e}")
 
-                    if len(lines) >= 2:
-                        title = lines[1]
-
-                    href = listing.get_attribute("href")
-
-                    if href and href.startswith("/"):
-                        href = "https://facebook.com" + href
-
-                    results.append({
-                        "title": title,
-                        "price": price,
-                        "location": location,
-                        "url": href
-                    })
-
-                except:
-                    continue
+                continue
 
         browser.close()
 
-    return results
+    # remove duplicates
+    unique_results = []
+
+    seen = set()
+
+    for item in results:
+
+        if item["title"] not in seen:
+
+            seen.add(item["title"])
+
+            unique_results.append(item)
+
+    return unique_results[:50]
