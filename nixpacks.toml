@@ -16,4 +16,23 @@ nixPkgs = [
   "xorg.libXcomposite",
   "xorg.libXdamage",
   "xorg.libXext",
-  "x
+  "xorg.libXfixes",
+  "xorg.libxcb",
+  "xorg.libXrandr",
+  "xorg.libxshmfence",
+  "xorg.libXtst",
+  "pango",
+  "cairo",
+  "alsa-lib",
+  "libxkbcommon",
+  "gtk3"
+]
+
+[phases.install]
+cmds = [
+  "pip install -r requirements.txt",
+  "python -m playwright install chromium"
+]
+
+[start]
+cmd = "python scanner.py"
