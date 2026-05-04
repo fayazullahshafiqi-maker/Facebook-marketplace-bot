@@ -1,62 +1,66 @@
 from playwright.sync_api import sync_playwright
 import re
-import hashlib
+import time
 
 KEYWORDS = [
-    "toyota rav4", "rav4",
-    "toyota kluger", "kluger",
-    "toyota prado", "prado",
-    "toyota hilux", "hilux",
-    "isuzu d-max", "dmax", "d-max",
-    "toyota hiace", "hiace"
-]
-
-BLOCK_WORDS = [
-    "Log in", "Forgotten account", "Marketplace",
-    "Create new listing", "Filters", "Notify",
-    "Sydney, Australia"
+    "toyota rav4",
+    "toyota kluger",
+    "toyota prado",
+    "toyota hilux",
+    "isuzu d-max",
+    "toyota hiace"
 ]
 
 
 def clean_text(text):
+    if not text:
+        return ""
     text = text.replace("\n", " ")
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
 
-def extract_price(text):
-    match = re.search(r"\$[\d,]+", text)
-    return match.group(0) if match else "N/A"
+def is_valid_listing(text, href):
+    if not href:
+        return False
+
+    bad_texts = [
+        "Log in",
+        "Forgotten account",
+        "Marketplace",
+        "Create new listing",
+        "Filters",
+        "Notify Me",
+        "Search results"
+    ]
+
+    if any(bad in text for bad in bad_texts):
+        return False
+
+    # must look like a marketplace item
+    if "/marketplace/item/" not in href:
+        return False
+
+    if len(text) < 15:
+        return False
+
+    return True
 
 
-def make_id(text):
-    return hashlib.md5(text.encode()).hexdigest()
-
-
-def is_noise(text):
-    t = text.lower()
-    return any(b.lower() in t for b in BLOCK_WORDS)
-
-
-def scrape_marketplace(headless=True):
-
+def scrape_marketplace():
     results = []
     seen = set()
 
     with sync_playwright() as p:
 
         browser = p.chromium.launch(
-            headless=headless,
-            args=["--disable-blink-features=AutomationControlled"]
+            headless=False,
+            slow_mo=50
         )
 
         context = browser.new_context(
             viewport={"width": 1280, "height": 900},
-            user_agent=(
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/136 Safari/537.36"
-            )
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
         )
 
         page = context.new_page()
@@ -64,74 +68,75 @@ def scrape_marketplace(headless=True):
 
         for keyword in KEYWORDS:
 
-            print(f"\n🔍 Searching: {keyword}")
+            print(f"\n🔎 Searching: {keyword}")
 
             url = f"https://www.facebook.com/marketplace/sydney/search?query={keyword.replace(' ', '%20')}"
 
             try:
                 page.goto(url, wait_until="domcontentloaded")
-                page.wait_for_timeout(5000)
+                page.wait_for_timeout(8000)
 
-                # scroll to load more listings
-                for _ in range(6):
+                # scroll more properly (important fix)
+                last_height = 0
+
+                for _ in range(8):
+
                     page.mouse.wheel(0, 8000)
-                    page.wait_for_timeout(1500)
+                    page.wait_for_timeout(2000)
 
-                # IMPORTANT: grab ALL links, then filter
-                links = page.locator("a")
-                count = links.count()
+                    # stop early if page stops loading
+                    current_height = page.evaluate("document.body.scrollHeight")
+                    if current_height == last_height:
+                        break
+                    last_height = current_height
 
-                print(f"🔗 raw links found: {count}")
+                # IMPORTANT FIX: broader selector
+                cards = page.locator('a[href*="/marketplace/"]')
+
+                count = cards.count()
+                print(f"Found raw elements: {count}")
 
                 for i in range(count):
 
                     try:
-                        link = links.nth(i)
+                        card = cards.nth(i)
 
-                        text = clean_text(link.inner_text(timeout=2000))
-                        href = link.get_attribute("href")
+                        text = clean_text(card.inner_text())
+                        href = card.get_attribute("href")
 
-                        if not href or not text:
+                        if not href:
                             continue
 
-                        # must be marketplace item
-                        if "/marketplace/item" not in href:
+                        if href.startswith("/"):
+                            href = "https://www.facebook.com" + href
+
+                        if not is_valid_listing(text, href):
                             continue
 
-                        if len(text) < 20:
+                        if href in seen:
                             continue
 
-                        if is_noise(text):
-                            continue
+                        seen.add(href)
 
-                        full_url = (
-                            "https://www.facebook.com" + href
-                            if href.startswith("/")
-                            else href
-                        )
+                        price_match = re.search(r"\$[\d,]+", text)
+                        price = price_match.group(0) if price_match else "N/A"
 
-                        item_id = make_id(full_url + text)
-
-                        if item_id in seen:
-                            continue
-
-                        seen.add(item_id)
-
-                        result = {
+                        item = {
                             "title": text[:200],
-                            "price": extract_price(text),
+                            "price": price,
                             "location": "NSW",
-                            "url": full_url
+                            "url": href
                         }
 
-                        print("✔", result)
-                        results.append(result)
+                        results.append(item)
+                        print("✔", item)
 
                         if len(results) >= 50:
                             browser.close()
                             return results
 
-                    except:
+                    except Exception as e:
+                        print("Card error:", e)
                         continue
 
             except Exception as e:
@@ -145,9 +150,9 @@ def scrape_marketplace(headless=True):
 
 if __name__ == "__main__":
 
-    data = scrape_marketplace(headless=False)
+    data = scrape_marketplace()
 
-    print("\nFINAL RESULTS:\n")
+    print("\n\nFINAL RESULTS:\n")
 
-    for item in data:
-        print(item)
+    for d in data:
+        print(d)
