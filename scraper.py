@@ -1,5 +1,4 @@
 from playwright.sync_api import sync_playwright
-import re
 
 KEYWORDS = [
     "toyota rav4",
@@ -26,10 +25,19 @@ def scrape_marketplace():
 
         browser = p.chromium.launch(
             headless=True,
-            args=["--disable-blink-features=AutomationControlled"]
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-dev-shm-usage"
+            ]
         )
 
-        page = browser.new_page()
+        context = browser.new_context(
+            viewport={"width": 1280, "height": 900},
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+        )
+
+        page = context.new_page()
 
         page.set_default_timeout(120000)
 
@@ -37,62 +45,93 @@ def scrape_marketplace():
 
             try:
 
-                print(f"Searching: {keyword}")
+                print(f"\nSearching: {keyword}")
 
                 url = f"https://www.facebook.com/marketplace/sydney/search?query={keyword.replace(' ', '%20')}"
 
-                page.goto(url)
+                page.goto(url, wait_until="domcontentloaded")
 
-                # wait longer for Facebook
+                # wait for marketplace to load
                 page.wait_for_timeout(15000)
 
-                # scroll multiple times
+                # scroll to load more listings
                 for _ in range(5):
-                    page.mouse.wheel(0, 8000)
-                    page.wait_for_timeout(4000)
 
-                body_text = page.locator("body").inner_text()
+                    page.mouse.wheel(0, 10000)
 
-                lines = body_text.split("\n")
+                    page.wait_for_timeout(3000)
 
-                for line in lines:
+                links = page.locator("a").all()
 
-                    text = line.strip()
+                print(f"Found {len(links)} links")
 
-                    if not text:
-                        continue
+                for link in links:
 
-                    # find price lines
-                    if re.search(r"AU\\$\\d+", text):
+                    try:
+
+                        text = link.inner_text().strip()
+
+                        href = link.get_attribute("href")
+
+                        if not text:
+                            continue
+
+                        if not href:
+                            continue
+
+                        if "/marketplace/item/" not in href:
+                            continue
+
+                        if len(text) < 5:
+                            continue
+
+                        if href.startswith("http"):
+                            full_url = href
+                        else:
+                            full_url = f"https://facebook.com{href}"
 
                         results.append({
                             "title": text[:200],
                             "price": 0,
                             "location": "NSW",
-                            "url": url
+                            "url": full_url
                         })
 
-                print(f"Collected: {len(results)} listings")
+                    except Exception:
+                        continue
+
+                print(f"Current total results: {len(results)}")
 
             except Exception as e:
 
-                print(f"Error with {keyword}: {e}")
+                print(f"ERROR with {keyword}: {e}")
 
                 continue
 
         browser.close()
 
-    # remove duplicates
+    # remove duplicate URLs
     unique_results = []
 
     seen = set()
 
     for item in results:
 
-        if item["title"] not in seen:
+        if item["url"] not in seen:
 
-            seen.add(item["title"])
+            seen.add(item["url"])
 
             unique_results.append(item)
 
+    print(f"\nFINAL UNIQUE RESULTS: {len(unique_results)}")
+
     return unique_results[:50]
+
+
+if __name__ == "__main__":
+
+    data = scrape_marketplace()
+
+    for item in data:
+
+        print(item)
