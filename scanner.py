@@ -1,6 +1,4 @@
-import os
 
-os.system("python -m playwright install chromium")
 import os
 import requests
 from scraper import scrape_marketplace
