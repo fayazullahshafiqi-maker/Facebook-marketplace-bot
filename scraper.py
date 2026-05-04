@@ -1,27 +1,22 @@
+from playwright.sync_api import sync_playwright
+
 def scrape_marketplace():
-    return [
-        {
-            "title": "Toyota Prado TX",
-            "price": 14500,
+    results = []
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+
+        # TEMP test page (safe for Railway)
+        page.goto("https://example.com")
+
+        results.append({
+            "title": "Test Listing",
+            "price": 1000,
             "location": "Sydney NSW",
-            "url": "https://facebook.com/example1"
-        },
-        {
-            "title": "Toyota Hilux 2010",
-            "price": 12000,
-            "location": "Parramatta NSW",
-            "url": "https://facebook.com/example2"
-        },
-        {
-            "title": "Toyota Hiace Van",
-            "price": 9800,
-            "location": "Auburn NSW",
-            "url": "https://facebook.com/example3"
-        },
-        {
-            "title": "Isuzu D-Max",
-            "price": 16000,
-            "location": "Bankstown NSW",
-            "url": "https://facebook.com/example4"
-        }
-    ]
+            "url": page.url
+        })
+
+        browser.close()
+
+    return results
