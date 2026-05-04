@@ -15,21 +15,20 @@ def scrape_marketplace():
             page.goto(url, timeout=60000)
             page.wait_for_timeout(8000)
 
-            # scroll to load content
             for _ in range(3):
                 page.mouse.wheel(0, 5000)
                 page.wait_for_timeout(2000)
 
-            # 🔥 SAFE: extract ALL visible text at once (no DOM iteration)
+            # 🔥 SAFE extraction (NO Playwright element objects)
             texts = page.evaluate("""
                 () => Array.from(document.querySelectorAll('a'))
-                    .map(a => a.innerText)
-                    .filter(t => t && t.length > 15)
+                    .map(el => el.innerText)
+                    .filter(t => t && t.length > 20)
             """)
 
-            for text in texts:
+            for t in texts:
                 results.append({
-                    "title": text[:120],
+                    "title": t[:120],
                     "price": 0,
                     "location": "NSW",
                     "url": page.url
