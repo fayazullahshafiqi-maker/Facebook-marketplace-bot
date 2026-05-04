@@ -19,10 +19,6 @@ nixPkgs = [
   "xorg.libXfixes",
   "xorg.libxcb",
   "xorg.libXrandr",
-  "xorg.libXrender",
-  "xorg.libXi",
-  "xorg.libXcursor",
-  "xorg.libXinerama",
   "pango",
   "cairo",
   "alsa-lib",
@@ -32,7 +28,7 @@ nixPkgs = [
 [phases.install]
 cmds = [
   "pip install -r requirements.txt",
-  "python -m playwright install --with-deps chromium"
+  "python -m playwright install chromium"
 ]
 
 [start]
