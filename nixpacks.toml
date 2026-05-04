@@ -4,14 +4,14 @@ nixPkgs = [
   "glib",
   "nss",
   "nspr",
+  "dbus",
   "atk",
   "at-spi2-atk",
   "cups",
-  "dbus",
   "expat",
   "libdrm",
   "mesa",
-  "xcbutil",
+  "libxkbcommon",
   "xorg.libX11",
   "xorg.libXcomposite",
   "xorg.libXdamage",
@@ -19,20 +19,21 @@ nixPkgs = [
   "xorg.libXfixes",
   "xorg.libxcb",
   "xorg.libXrandr",
-  "xorg.libxshmfence",
-  "xorg.libXtst",
+  "xorg.libXrender",
+  "xorg.libXi",
+  "xorg.libXcursor",
+  "xorg.libXinerama",
   "pango",
   "cairo",
   "alsa-lib",
-  "libxkbcommon",
   "gtk3"
 ]
 
 [phases.install]
 cmds = [
   "pip install -r requirements.txt",
-  "python -m playwright install chromium"
+  "python -m playwright install --with-deps chromium"
 ]
 
 [start]
-cmd = "python scanner.py"
+cmd = "python main.py"
