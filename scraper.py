@@ -1,8 +1,6 @@
 from playwright.sync_api import sync_playwright
 
-KEYWORDS = [
-    "rav4", "kluger", "prado", "hilux", "dmax", "d-max", "hiace"
-]
+KEYWORDS = ["rav4", "kluger", "prado", "hilux", "dmax", "hiace"]
 
 def scrape_marketplace():
     results = []
@@ -14,19 +12,23 @@ def scrape_marketplace():
         for keyword in KEYWORDS:
 
             url = f"https://www.facebook.com/marketplace/sydney/search?query={keyword}"
-
             page.goto(url, timeout=60000)
-            page.wait_for_timeout(6000)
 
-            page.mouse.wheel(0, 4000)
-            page.wait_for_timeout(3000)
+            page.wait_for_timeout(8000)
 
-            # ONLY TARGET LINKS (better than div spam)
-            items = page.query_selector_all("a")
+            # scroll
+            for _ in range(3):
+                page.mouse.wheel(0, 5000)
+                page.wait_for_timeout(2000)
 
-            for item in items:
+            # ✅ USE LOCATOR (FIXES _object ERROR)
+            items = page.locator("a")
+
+            count = items.count()
+
+            for i in range(min(count, 30)):
                 try:
-                    text = item.inner_text()
+                    text = items.nth(i).inner_text()
 
                     if not text or len(text) < 15:
                         continue
