@@ -16,9 +16,6 @@ KEYWORDS = [
     "hiace"
 ]
 
-MIN_PRICE = 200
-MAX_PRICE = 18000
-
 
 def scrape_marketplace():
     results = []
@@ -34,21 +31,19 @@ def scrape_marketplace():
             page.goto(url, timeout=60000)
             page.wait_for_timeout(8000)
 
-            # Scroll to load listings
-            page.mouse.wheel(0, 3000)
-            page.wait_for_timeout(3000)
+            # scroll to load listings
+            for _ in range(3):
+                page.mouse.wheel(0, 5000)
+                page.wait_for_timeout(3000)
 
-            page.mouse.wheel(0, 6000)
-            page.wait_for_timeout(3000)
+            # grab visible content blocks
+            items = page.query_selector_all("div")
 
-            # Try to capture listing links
-            items = page.query_selector_all("a")
-
-            for item in items[:30]:
+            for item in items:
                 try:
                     text = item.inner_text()
 
-                    if not text:
+                    if not text or len(text) < 20:
                         continue
 
                     if any(k.lower() in text.lower() for k in KEYWORDS):
@@ -57,8 +52,11 @@ def scrape_marketplace():
                             "title": text[:120],
                             "price": 0,
                             "location": "NSW",
-                            "url": "https://facebook.com" + (item.get_attribute("href") or "")
+                            "url": page.url
                         })
+
+                    if len(results) >= 20:
+                        break
 
                 except:
                     continue
