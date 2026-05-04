@@ -4,11 +4,16 @@ def scrape_marketplace():
     results = []
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+        browser = p.chromium.launch(
+            headless=True,
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox"
+            ]
+        )
 
-        # TEMP test page (safe for Railway)
-        page.goto("https://example.com")
+        page = browser.new_page()
+        page.goto("https://example.com", timeout=60000)
 
         results.append({
             "title": "Test Listing",
