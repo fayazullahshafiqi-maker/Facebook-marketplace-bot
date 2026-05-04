@@ -13,38 +13,30 @@ def scrape_marketplace():
 
             url = f"https://www.facebook.com/marketplace/sydney/search?query={keyword}"
             page.goto(url, timeout=60000)
-
             page.wait_for_timeout(8000)
 
-            # scroll
+            # scroll to load content
             for _ in range(3):
                 page.mouse.wheel(0, 5000)
                 page.wait_for_timeout(2000)
 
-            # ✅ USE LOCATOR (FIXES _object ERROR)
-            items = page.locator("a")
+            # 🔥 SAFE: extract ALL visible text at once (no DOM iteration)
+            texts = page.evaluate("""
+                () => Array.from(document.querySelectorAll('a'))
+                    .map(a => a.innerText)
+                    .filter(t => t && t.length > 15)
+            """)
 
-            count = items.count()
+            for text in texts:
+                results.append({
+                    "title": text[:120],
+                    "price": 0,
+                    "location": "NSW",
+                    "url": page.url
+                })
 
-            for i in range(min(count, 30)):
-                try:
-                    text = items.nth(i).inner_text()
-
-                    if not text or len(text) < 15:
-                        continue
-
-                    results.append({
-                        "title": text[:120],
-                        "price": 0,
-                        "location": "NSW",
-                        "url": page.url
-                    })
-
-                    if len(results) >= 20:
-                        break
-
-                except:
-                    continue
+                if len(results) >= 20:
+                    break
 
         browser.close()
 
