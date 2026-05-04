@@ -1,4 +1,4 @@
-python
+```python
 from playwright.sync_api import sync_playwright
 import re
 
@@ -33,37 +33,46 @@ def scrape_marketplace():
     with sync_playwright() as p:
 
         browser = p.chromium.launch(
-            headless=True
+            headless=False,
+            args=[
+                "--disable-blink-features=AutomationControlled"
+            ]
         )
 
-        page = browser.new_page()
+        context = browser.new_context(
+            viewport={"width": 1280, "height": 900},
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+        )
 
-        # better loading
-        page.set_default_timeout(60000)
+        page = context.new_page()
+
+        page.set_default_timeout(30000)
 
         for keyword in KEYWORDS:
 
-            print(f"Searching: {keyword}")
-
-            url = f"https://www.facebook.com/marketplace/sydney/search?query={keyword.replace(' ', '%20')}"
+            print(f"\nSearching: {keyword}")
 
             try:
 
-                page.goto(url, wait_until="networkidle")
+                url = f"https://www.facebook.com/marketplace/sydney/search?query={keyword.replace(' ', '%20')}"
 
-                page.wait_for_timeout(5000)
+                page.goto(url)
 
-                # scroll a bit
-                for _ in range(5):
-                    page.mouse.wheel(0, 8000)
-                    page.wait_for_timeout(2000)
+                page.wait_for_timeout(7000)
 
-                # get marketplace cards
-                cards = page.locator('a[href*="/marketplace/item"]')
+                # scroll page slowly
+                for _ in range(4):
+
+                    page.mouse.wheel(0, 6000)
+
+                    page.wait_for_timeout(2500)
+
+                # listing links
+                cards = page.locator('a[href*="/marketplace/item/"]')
 
                 count = cards.count()
 
-                print(f"Found {count} cards")
+                print(f"Found {count} listings")
 
                 for i in range(count):
 
@@ -75,52 +84,68 @@ def scrape_marketplace():
 
                         href = card.get_attribute("href")
 
-                        if not text:
-                            continue
-
-                        if len(text) < 10:
+                        if not href:
                             continue
 
                         if href in seen:
                             continue
 
+                        if len(text) < 15:
+                            continue
+
                         seen.add(href)
 
-                        full_url = href
-
                         if href.startswith("/"):
-                            full_url = "https://facebook.com" + href
+                            href = "https://www.facebook.com" + href
 
                         # extract price
-                        price_match = re.search(r"\$[\d,]+", text)
+                        price = "N/A"
 
-                        price = 0
+                        match = re.search(r"\$[\d,]+", text)
 
-                        if price_match:
-                            price = price_match.group(0)
+                        if match:
+                            price = match.group(0)
 
-                        results.append({
+                        result = {
                             "title": text[:200],
                             "price": price,
                             "location": "NSW",
-                            "url": full_url
-                        })
+                            "url": href
+                        }
 
-                        print(text[:120])
+                        print(result)
+
+                        results.append(result)
 
                         if len(results) >= 50:
+
                             browser.close()
+
                             return results
 
                     except Exception as e:
+
                         print("Card error:", e)
+
                         continue
 
             except Exception as e:
+
                 print("Search error:", e)
+
                 continue
 
         browser.close()
 
     return results
 
+
+if __name__ == "__main__":
+
+    data = scrape_marketplace()
+
+    print("\nFINAL RESULTS:\n")
+
+    for item in data:
+        print(item)
+```
