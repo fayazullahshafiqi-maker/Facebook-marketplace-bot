@@ -7,13 +7,18 @@ app = Flask(__name__)
 def home():
     return "Marketplace bot is running"
 
-@app.route("/scan")
-def scan():
-    try:
-        data = scrape_marketplace()
-        return jsonify(data)
-    except Exception as e:
-        return jsonify({"error": str(e)})
+@app.route("/scrape")
+def scrape():
+    data = scrape_marketplace()
+    return jsonify(data)
+
+@app.route("/api")
+def api():
+    data = scrape_marketplace()
+    return jsonify({
+        "count": len(data),
+        "results": data
+    })
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
