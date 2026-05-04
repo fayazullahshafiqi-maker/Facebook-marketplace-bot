@@ -1,4 +1,6 @@
+```python
 from playwright.sync_api import sync_playwright
+import re
 
 KEYWORDS = [
     "toyota rav4",
@@ -17,121 +19,108 @@ KEYWORDS = [
 ]
 
 
+def clean_text(text):
+    text = text.replace("\n", " ").strip()
+    text = re.sub(r"\s+", " ", text)
+    return text
+
+
 def scrape_marketplace():
 
     results = []
+    seen = set()
 
     with sync_playwright() as p:
 
         browser = p.chromium.launch(
-            headless=True,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-                "--disable-dev-shm-usage"
-            ]
+            headless=True
         )
 
-        context = browser.new_context(
-            viewport={"width": 1280, "height": 900},
-            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
-        )
+        page = browser.new_page()
 
-        page = context.new_page()
-
-        page.set_default_timeout(120000)
+        # better loading
+        page.set_default_timeout(60000)
 
         for keyword in KEYWORDS:
 
+            print(f"Searching: {keyword}")
+
+            url = f"https://www.facebook.com/marketplace/sydney/search?query={keyword.replace(' ', '%20')}"
+
             try:
 
-                print(f"\nSearching: {keyword}")
+                page.goto(url, wait_until="networkidle")
 
-                url = f"https://www.facebook.com/marketplace/sydney/search?query={keyword.replace(' ', '%20')}"
+                page.wait_for_timeout(5000)
 
-                page.goto(url, wait_until="domcontentloaded")
-
-                # wait for marketplace to load
-                page.wait_for_timeout(15000)
-
-                # scroll to load more listings
+                # scroll a bit
                 for _ in range(5):
+                    page.mouse.wheel(0, 8000)
+                    page.wait_for_timeout(2000)
 
-                    page.mouse.wheel(0, 10000)
+                # get marketplace cards
+                cards = page.locator('a[href*="/marketplace/item"]')
 
-                    page.wait_for_timeout(3000)
+                count = cards.count()
 
-                links = page.locator("a").all()
+                print(f"Found {count} cards")
 
-                print(f"Found {len(links)} links")
-
-                for link in links:
+                for i in range(count):
 
                     try:
 
-                        text = link.inner_text().strip()
+                        card = cards.nth(i)
 
-                        href = link.get_attribute("href")
+                        text = clean_text(card.inner_text())
+
+                        href = card.get_attribute("href")
 
                         if not text:
                             continue
 
-                        if not href:
+                        if len(text) < 10:
                             continue
 
-                        if "/marketplace/item/" not in href:
+                        if href in seen:
                             continue
 
-                        if len(text) < 5:
-                            continue
+                        seen.add(href)
 
-                        if href.startswith("http"):
-                            full_url = href
-                        else:
-                            full_url = f"https://facebook.com{href}"
+                        full_url = href
+
+                        if href.startswith("/"):
+                            full_url = "https://facebook.com" + href
+
+                        # extract price
+                        price_match = re.search(r"\$[\d,]+", text)
+
+                        price = 0
+
+                        if price_match:
+                            price = price_match.group(0)
 
                         results.append({
                             "title": text[:200],
-                            "price": 0,
+                            "price": price,
                             "location": "NSW",
                             "url": full_url
                         })
 
-                    except Exception:
+                        print(text[:120])
+
+                        if len(results) >= 50:
+                            browser.close()
+                            return results
+
+                    except Exception as e:
+                        print("Card error:", e)
                         continue
 
-                print(f"Current total results: {len(results)}")
-
             except Exception as e:
-
-                print(f"ERROR with {keyword}: {e}")
-
+                print("Search error:", e)
                 continue
 
         browser.close()
 
-    # remove duplicate URLs
-    unique_results = []
-
-    seen = set()
-
-    for item in results:
-
-        if item["url"] not in seen:
-
-            seen.add(item["url"])
-
-            unique_results.append(item)
-
-    print(f"\nFINAL UNIQUE RESULTS: {len(unique_results)}")
-
-    return unique_results[:50]
-
-
-if __name__ == "__main__":
-
-    data = scrape_marketplace()
-
-    for item in data:
-
-        print(item)
+    return results
+```
