@@ -1,4 +1,4 @@
-```python
+python
 from playwright.sync_api import sync_playwright
 import re
 
@@ -123,4 +123,4 @@ def scrape_marketplace():
         browser.close()
 
     return results
-```
+
