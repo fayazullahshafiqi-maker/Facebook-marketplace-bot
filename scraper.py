@@ -1,8 +1,4 @@
-import os
 from playwright.sync_api import sync_playwright
-
-# FORCE install browser at runtime (Railway-safe)
-os.system("python -m playwright install chromium")
 
 def scrape_marketplace():
     results = []
@@ -10,7 +6,11 @@ def scrape_marketplace():
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-setuid-sandbox"]
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage"
+            ]
         )
 
         page = browser.new_page()
