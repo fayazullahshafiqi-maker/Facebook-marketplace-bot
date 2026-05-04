@@ -60,9 +60,8 @@ def scrape_marketplace():
 
                     href = listing.get_attribute("href")
 
-                    if href:
-                        if href.startswith("/"):
-                            href = "https://facebook.com" + href
+                    if href and href.startswith("/"):
+                        href = "https://facebook.com" + href
 
                     results.append({
                         "title": title,
