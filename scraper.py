@@ -134,8 +134,8 @@ def scrape_marketplace():
                     time.sleep(2)
 
                 cards = page.locator(
-                    'a[href*="/marketplace/item"]'
-                )
+    'a[href*="/marketplace/item/"]:visible'
+)
 
                 count = cards.count()
 
@@ -147,9 +147,12 @@ def scrape_marketplace():
 
                         card = cards.nth(i)
 
-                        text = clean(card.inner_text())
+                        text = clean(card.locator("..").inner_text())
 
                         href = card.get_attribute("href")
+
+if href and "marketplace/item" not in href:
+    continue
 
                         if not href:
                             continue
