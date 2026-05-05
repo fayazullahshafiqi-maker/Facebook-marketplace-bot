@@ -1,24 +1,25 @@
-from flask import Flask, jsonify
 from scraper import scrape_marketplace
 
-app = Flask(__name__)
+def main():
+    query = "toyota rav4"
+    
+    print(f"Scraping Facebook Marketplace for: {query} ...")
+    
+    data = scrape_marketplace(query)
 
-@app.route("/")
-def home():
-    return "Marketplace bot is running"
+    print("\n===== RESULTS =====\n")
 
-@app.route("/scrape")
-def scrape():
-    data = scrape_marketplace()
-    return jsonify(data)
+    if not data:
+        print("No results found.")
+        return
 
-@app.route("/api")
-def api():
-    data = scrape_marketplace()
-    return jsonify({
-        "count": len(data),
-        "results": data
-    })
+    for i, item in enumerate(data, start=1):
+        print(f"{i}. {item.get('title')}")
+        print(f"   Price: {item.get('price')}")
+        print(f"   URL: {item.get('url')}")
+        print(f"   Location: {item.get('location')}")
+        print("-" * 50)
+
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    main()
