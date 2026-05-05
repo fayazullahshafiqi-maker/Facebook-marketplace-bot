@@ -1,4 +1,4 @@
-```python
+
 from playwright.sync_api import sync_playwright
 import re
 import time
@@ -126,4 +126,4 @@ def scrape_marketplace():
     print(f"TOTAL RESULTS: {len(results)}")
 
     return results
-```
+
