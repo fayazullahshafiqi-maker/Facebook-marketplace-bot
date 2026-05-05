@@ -1,49 +1,39 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
-import time
+import requests
+from bs4 import BeautifulSoup
 
-
-def scrape_marketplace(query="toyota rav4"):
-    options = Options()
-    options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--window-size=1920,1080")
-
-    driver = webdriver.Chrome(options=options)
-
+def scrape_marketplace(query):
     url = f"https://www.facebook.com/marketplace/sydney/search?query={query.replace(' ', '%20')}"
-    driver.get(url)
 
-    time.sleep(5)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
+    }
+
+    r = requests.get(url, headers=headers)
+    soup = BeautifulSoup(r.text, "html.parser")
 
     results = []
 
-    try:
-        cards = driver.find_elements(By.XPATH, "//a[contains(@href, '/marketplace/item/')]")
+    # find all links
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        text = a.get_text(strip=True)
 
-        for card in cards:
-            try:
-                href = card.get_attribute("href")
-
-                text = card.text.split("\n")
-
-                title = text[0] if len(text) > 0 else ""
-                price = text[1] if len(text) > 1 else ""
-
+        if "/marketplace/item/" in href or "marketplace" in href:
+            if text and len(text) > 10:
                 results.append({
-                    "title": title,
-                    "price": price,
+                    "title": text,
                     "url": href,
-                    "location": "NSW"
+                    "price": 0,
+                    "location": "Sydney"
                 })
 
-            except Exception:
-                continue
+    # remove duplicates
+    seen = set()
+    clean = []
 
-    except Exception as e:
-        print("Scrape error:", e)
+    for r in results:
+        if r["url"] not in seen:
+            clean.append(r)
+            seen.add(r["url"])
 
-    driver.quit()
-    return results
+    return clean[:20]
