@@ -12,21 +12,30 @@ KEYWORDS = [
 ]
 
 
-def clean_text(text):
+def clean(text):
     return re.sub(r"\s+", " ", text.replace("\n", " ")).strip()
 
 
-def is_bad_text(text):
-    bad_words = [
+def is_noise(text):
+    bad = [
         "log in", "forgotten account", "marketplace",
         "create new listing", "filters", "notify me",
-        "sydney, australia", "within", "sort by"
+        "within", "sort by", "sydney, australia"
     ]
     t = text.lower()
-    return any(b in t for b in bad_words)
+    return any(x in t for x in bad)
 
 
-def scrape_marketplace():
+def looks_like_listing(text):
+    # real listing usually has price OR km OR model year
+    return (
+        "$" in text or
+        "km" in text.lower() or
+        "20" in text  # year hint
+    )
+
+
+def scrape():
 
     results = []
     seen = set()
@@ -40,55 +49,63 @@ def scrape_marketplace():
 
         context = browser.new_context(
             viewport={"width": 1280, "height": 900},
-            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
         )
 
         page = context.new_page()
-
         page.set_default_timeout(60000)
 
-        for keyword in KEYWORDS:
+        for kw in KEYWORDS:
 
-            print(f"\n🔎 Searching: {keyword}")
+            print(f"\n🔎 Searching: {kw}")
 
-            url = f"https://www.facebook.com/marketplace/sydney/search?query={keyword.replace(' ', '%20')}"
+            url = f"https://www.facebook.com/marketplace/sydney/search?query={kw.replace(' ', '%20')}"
 
             try:
                 page.goto(url, wait_until="domcontentloaded")
-                time.sleep(5)
+                time.sleep(6)
 
-                # wait until real listings appear
+                # 🔥 detect fake page (login shell)
+                body_text = page.inner_text("body").lower()
+
+                if "log in" in body_text and "marketplace" in body_text:
+                    print("⚠ Login shell detected (not real feed)")
+
+                # wait for real listings
                 try:
-                    page.wait_for_selector('a[href*="/marketplace/item"]', timeout=10000)
+                    page.wait_for_selector('a[href*="/marketplace/item"]', timeout=15000)
                 except:
-                    print("⚠ No listings detected, retrying...")
+                    print("❌ No listings loaded")
                     continue
 
-                # scroll properly (wait for content change)
-                last_height = 0
-
-                for _ in range(5):
-                    page.mouse.wheel(0, 8000)
+                # slow scroll (important for FB lazy load)
+                for _ in range(6):
+                    page.mouse.wheel(0, 9000)
                     time.sleep(2)
 
-                # grab ALL links
                 links = page.locator('a[href*="/marketplace/item"]')
                 count = links.count()
 
-                print(f"📦 Found {count} raw elements")
+                print(f"📦 Raw elements: {count}")
 
                 for i in range(count):
 
                     try:
                         el = links.nth(i)
 
-                        text = clean_text(el.inner_text())
+                        text = clean(el.inner_text())
                         href = el.get_attribute("href")
 
                         if not href:
                             continue
 
-                        if is_bad_text(text):
+                        if is_noise(text):
+                            continue
+
+                        if not looks_like_listing(text):
                             continue
 
                         if len(text) < 15:
@@ -102,8 +119,10 @@ def scrape_marketplace():
                         if href.startswith("/"):
                             href = "https://www.facebook.com" + href
 
-                        price_match = re.search(r"\$[\d,]+", text)
-                        price = price_match.group(0) if price_match else "N/A"
+                        price = "N/A"
+                        m = re.search(r"\$[\d,]+", text)
+                        if m:
+                            price = m.group(0)
 
                         item = {
                             "title": text[:200],
@@ -113,7 +132,6 @@ def scrape_marketplace():
                         }
 
                         results.append(item)
-
                         print("✔", item)
 
                         if len(results) >= 50:
@@ -135,7 +153,7 @@ def scrape_marketplace():
 
 if __name__ == "__main__":
 
-    data = scrape_marketplace()
+    data = scrape()
 
     print("\nFINAL RESULTS:\n")
 
