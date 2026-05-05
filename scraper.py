@@ -1,36 +1,23 @@
-
 from playwright.sync_api import sync_playwright
-import re
 import time
+import re
 
 SEARCHES = [
     "toyota rav4",
-    "rav4",
     "toyota kluger",
-    "kluger",
     "toyota prado",
-    "prado",
     "toyota hilux",
-    "hilux",
     "isuzu d-max",
-    "dmax",
-    "d-max",
-    "toyota hiace",
-    "hiace"
+    "toyota hiace"
 ]
 
-def clean_text(text):
-    if not text:
-        return ""
-    return text.replace("\n", " ").strip()
+def clean(text):
+    return text.replace("\n", " ").strip() if text else ""
 
 def extract_price(text):
-    try:
-        match = re.search(r"AU\\$([\\d,]+)", text)
-        if match:
-            return int(match.group(1).replace(",", ""))
-    except:
-        pass
+    match = re.search(r"AU\\$([\\d,]+)", text)
+    if match:
+        return int(match.group(1).replace(",", ""))
     return 0
 
 def scrape_marketplace():
@@ -40,7 +27,6 @@ def scrape_marketplace():
         browser = p.chromium.launch(
             headless=True,
             args=[
-                "--disable-dev-shm-usage",
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
                 "--disable-blink-features=AutomationControlled"
@@ -49,81 +35,77 @@ def scrape_marketplace():
 
         context = browser.new_context(
             viewport={"width": 1280, "height": 2000},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X) AppleWebKit/537.36 Chrome/120 Safari/537.36"
         )
 
         page = context.new_page()
 
         for search in SEARCHES:
             try:
-                url = f"https://www.facebook.com/marketplace/sydney/search?query={search}"
-
                 print(f"Searching: {search}")
 
-                page.goto(url, timeout=90000, wait_until="domcontentloaded")
+                url = f"https://www.facebook.com/marketplace/sydney/search?query={search}"
+                page.goto(url, timeout=90000)
 
-                time.sleep(8)
+                # wait for marketplace content
+                page.wait_for_timeout(8000)
 
-                # Scroll multiple times
-                for _ in range(5):
-                    page.mouse.wheel(0, 5000)
-                    time.sleep(2)
+                # scroll to load real listings
+                for _ in range(6):
+                    page.mouse.wheel(0, 4000)
+                    page.wait_for_timeout(2000)
 
-                links = page.locator("a[href*='/marketplace/item/']")
+                # REAL marketplace cards (important fix)
+                cards = page.locator("div[role='article']")
 
-                count = links.count()
+                count = cards.count()
+                print("Cards found:", count)
 
-                print(f"Found {count} cards")
-
-                for i in range(min(count, 50)):
+                for i in range(min(count, 40)):
                     try:
-                        card = links.nth(i)
+                        card = cards.nth(i)
+                        text = clean(card.inner_text())
 
-                        href = card.get_attribute("href")
-
-                        if not href:
+                        # filter junk (THIS fixes your log-in spam)
+                        if len(text) < 20:
+                            continue
+                        if "Log in" in text:
+                            continue
+                        if "Marketplace" in text and "AU$" not in text:
                             continue
 
-                        full_text = clean_text(card.inner_text())
+                        price = extract_price(text)
 
-                        if len(full_text) < 5:
+                        # skip empty listings
+                        if price == 0 and len(text) < 30:
                             continue
 
-                        lines = full_text.split()
+                        # try find link
+                        link = card.locator("a").first
+                        href = link.get_attribute("href") if link.count() > 0 else None
 
-                        location = "NSW"
-
-                        price = extract_price(full_text)
-
-                        title = full_text[:200]
+                        if href and "/marketplace/item/" in href:
+                            full_url = "https://www.facebook.com" + href
+                        else:
+                            full_url = "N/A"
 
                         item = {
-                            "location": location,
+                            "location": "NSW",
                             "price": price,
-                            "title": title,
-                            "url": href
+                            "title": text[:200],
+                            "url": full_url
                         }
 
-                        # Prevent duplicates
-                        already_exists = False
-
-                        for existing in results:
-                            if existing["url"] == href:
-                                already_exists = True
-                                break
-
-                        if not already_exists:
+                        if item not in results:
                             results.append(item)
 
                     except Exception as e:
-                        print(f"Card error: {e}")
+                        print("Card error:", e)
 
             except Exception as e:
-                print(f"Search failed: {search} | {e}")
+                print("Search failed:", search, e)
 
         browser.close()
 
-    print(f"TOTAL RESULTS: {len(results)}")
-
+    print("TOTAL:", len(results))
     return results
-
