@@ -3,39 +3,76 @@ import re
 import time
 
 KEYWORDS = [
-    "toyota rav4", "rav4",
-    "toyota kluger", "kluger",
-    "toyota prado", "prado",
-    "toyota hilux", "hilux",
-    "isuzu d-max", "dmax", "d-max",
-    "toyota hiace", "hiace"
+    "toyota rav4",
+    "rav4",
+    "toyota kluger",
+    "kluger",
+    "toyota prado",
+    "prado",
+    "toyota hilux",
+    "hilux",
+    "isuzu d-max",
+    "dmax",
+    "d-max",
+    "toyota hiace",
+    "hiace"
 ]
 
 
 def clean(text):
-    return re.sub(r"\s+", " ", text.replace("\n", " ")).strip()
+    text = text.replace("\n", " ").strip()
+    text = re.sub(r"\s+", " ", text)
+    return text
 
 
 def is_noise(text):
-    bad = [
-        "log in", "forgotten account", "marketplace",
-        "create new listing", "filters", "notify me",
-        "within", "sort by", "sydney, australia"
+
+    bad_words = [
+        "log in",
+        "forgotten account",
+        "marketplace",
+        "search results",
+        "filters",
+        "notify me",
+        "create new listing",
+        "within",
+        "sort by",
+        "sydney, australia"
     ]
-    t = text.lower()
-    return any(x in t for x in bad)
+
+    lower = text.lower()
+
+    for word in bad_words:
+        if word in lower:
+            return True
+
+    return False
 
 
 def looks_like_listing(text):
-    # real listing usually has price OR km OR model year
-    return (
-        "$" in text or
-        "km" in text.lower() or
-        "20" in text  # year hint
-    )
+
+    lower = text.lower()
+
+    if "$" in text:
+        return True
+
+    if "km" in lower:
+        return True
+
+    years = [
+        "200",
+        "201",
+        "202"
+    ]
+
+    for y in years:
+        if y in text:
+            return True
+
+    return False
 
 
-def scrape():
+def scrape_marketplace():
 
     results = []
     seen = set()
@@ -43,61 +80,76 @@ def scrape():
     with sync_playwright() as p:
 
         browser = p.chromium.launch(
-            headless=False,
-            args=["--disable-blink-features=AutomationControlled"]
+            headless=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-dev-shm-usage"
+            ]
         )
 
         context = browser.new_context(
-            viewport={"width": 1280, "height": 900},
+            viewport={
+                "width": 1280,
+                "height": 900
+            },
             user_agent=(
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/136.0.0.0 Safari/537.36"
             )
         )
 
         page = context.new_page()
+
         page.set_default_timeout(60000)
 
-        for kw in KEYWORDS:
+        for keyword in KEYWORDS:
 
-            print(f"\n🔎 Searching: {kw}")
-
-            url = f"https://www.facebook.com/marketplace/sydney/search?query={kw.replace(' ', '%20')}"
+            print(f"\nSearching: {keyword}")
 
             try:
-                page.goto(url, wait_until="domcontentloaded")
-                time.sleep(6)
 
-                # 🔥 detect fake page (login shell)
-                body_text = page.inner_text("body").lower()
+                url = (
+                    "https://www.facebook.com/marketplace/"
+                    f"sydney/search?query={keyword.replace(' ', '%20')}"
+                )
 
-                if "log in" in body_text and "marketplace" in body_text:
-                    print("⚠ Login shell detected (not real feed)")
+                page.goto(
+                    url,
+                    wait_until="domcontentloaded"
+                )
 
-                # wait for real listings
-                try:
-                    page.wait_for_selector('a[href*="/marketplace/item"]', timeout=15000)
-                except:
-                    print("❌ No listings loaded")
-                    continue
+                time.sleep(8)
 
-                # slow scroll (important for FB lazy load)
+                body = page.inner_text("body").lower()
+
+                if "log in" in body and "marketplace" in body:
+                    print("Facebook login wall detected")
+
                 for _ in range(6):
+
                     page.mouse.wheel(0, 9000)
+
                     time.sleep(2)
 
-                links = page.locator('a[href*="/marketplace/item"]')
-                count = links.count()
+                cards = page.locator(
+                    'a[href*="/marketplace/item"]'
+                )
 
-                print(f"📦 Raw elements: {count}")
+                count = cards.count()
+
+                print(f"Found {count} raw cards")
 
                 for i in range(count):
 
                     try:
-                        el = links.nth(i)
 
-                        text = clean(el.inner_text())
-                        href = el.get_attribute("href")
+                        card = cards.nth(i)
+
+                        text = clean(card.inner_text())
+
+                        href = card.get_attribute("href")
 
                         if not href:
                             continue
@@ -120,9 +172,14 @@ def scrape():
                             href = "https://www.facebook.com" + href
 
                         price = "N/A"
-                        m = re.search(r"\$[\d,]+", text)
-                        if m:
-                            price = m.group(0)
+
+                        match = re.search(
+                            r"\$[\d,]+",
+                            text
+                        )
+
+                        if match:
+                            price = match.group(0)
 
                         item = {
                             "title": text[:200],
@@ -132,18 +189,25 @@ def scrape():
                         }
 
                         results.append(item)
-                        print("✔", item)
+
+                        print(item)
 
                         if len(results) >= 50:
+
                             browser.close()
+
                             return results
 
                     except Exception as e:
+
                         print("Card error:", e)
+
                         continue
 
             except Exception as e:
+
                 print("Search error:", e)
+
                 continue
 
         browser.close()
@@ -153,9 +217,9 @@ def scrape():
 
 if __name__ == "__main__":
 
-    data = scrape()
+    data = scrape_marketplace()
 
     print("\nFINAL RESULTS:\n")
 
-    for d in data:
-        print(d)
+    for item in data:
+        print(item)
