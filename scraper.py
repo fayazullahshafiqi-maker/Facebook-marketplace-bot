@@ -59,15 +59,8 @@ def looks_like_listing(text):
     if "km" in lower:
         return True
 
-    years = [
-        "200",
-        "201",
-        "202"
-    ]
-
-    for y in years:
-        if y in text:
-            return True
+    if re.search(r"\b20\d{2}\b", text):
+        return True
 
     return False
 
@@ -122,21 +115,15 @@ def scrape_marketplace():
 
                 time.sleep(8)
 
-                body = page.inner_text("body").lower()
-
-                if "log in" in body and "marketplace" in body:
-                    print("Facebook login wall detected")
-
                 for _ in range(6):
 
                     page.mouse.wheel(0, 9000)
 
                     time.sleep(2)
 
-                   href = card.get_attribute("href")
-
-if href and "marketplace/item" not in href:
-    continue
+                cards = page.locator(
+                    'a[href*="/marketplace/item/"]:visible'
+                )
 
                 count = cards.count()
 
@@ -148,15 +135,17 @@ if href and "marketplace/item" not in href:
 
                         card = cards.nth(i)
 
-                        text = clean(card.locator("..").inner_text())
-
                         href = card.get_attribute("href")
-
-if href and "marketplace/item" not in href:
-    continue
 
                         if not href:
                             continue
+
+                        if "marketplace/item" not in href:
+                            continue
+
+                        text = clean(
+                            card.locator("..").inner_text()
+                        )
 
                         if is_noise(text):
                             continue
@@ -192,9 +181,9 @@ if href and "marketplace/item" not in href:
                             "url": href
                         }
 
-                        results.append(item)
-
                         print(item)
+
+                        results.append(item)
 
                         if len(results) >= 50:
 
