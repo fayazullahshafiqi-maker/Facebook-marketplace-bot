@@ -12,7 +12,9 @@ SEARCHES = [
 ]
 
 def clean(text):
-    return text.replace("\n", " ").strip() if text else ""
+    if not text:
+        return ""
+    return re.sub(r"\s+", " ", text).strip()
 
 def extract_price(text):
     match = re.search(r"AU\\$([\\d,]+)", text)
@@ -20,8 +22,18 @@ def extract_price(text):
         return int(match.group(1).replace(",", ""))
     return 0
 
+def is_valid(text):
+    bad_words = [
+        "log in", "forgotten account", "marketplace",
+        "create new listing", "filters", "notify me",
+        "within", "search results"
+    ]
+    t = text.lower()
+    return len(text) > 25 and not any(b in t for b in bad_words)
+
 def scrape_marketplace():
     results = []
+    seen_urls = set()
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -42,70 +54,64 @@ def scrape_marketplace():
 
         for search in SEARCHES:
             try:
-                print(f"Searching: {search}")
+                print("Searching:", search)
 
                 url = f"https://www.facebook.com/marketplace/sydney/search?query={search}"
-                page.goto(url, timeout=90000)
+                page.goto(url, timeout=90000, wait_until="domcontentloaded")
 
-                # wait for marketplace content
                 page.wait_for_timeout(8000)
 
-                # scroll to load real listings
-                for _ in range(6):
-                    page.mouse.wheel(0, 4000)
+                # scroll more to load real items
+                for _ in range(7):
+                    page.mouse.wheel(0, 5000)
                     page.wait_for_timeout(2000)
 
-                # REAL marketplace cards (important fix)
+                # BEST FIX: only real marketplace cards
                 cards = page.locator("div[role='article']")
-
                 count = cards.count()
-                print("Cards found:", count)
 
-                for i in range(min(count, 40)):
+                print("Cards:", count)
+
+                for i in range(min(count, 50)):
                     try:
                         card = cards.nth(i)
                         text = clean(card.inner_text())
 
-                        # filter junk (THIS fixes your log-in spam)
-                        if len(text) < 20:
-                            continue
-                        if "Log in" in text:
-                            continue
-                        if "Marketplace" in text and "AU$" not in text:
+                        if not is_valid(text):
                             continue
 
                         price = extract_price(text)
 
-                        # skip empty listings
-                        if price == 0 and len(text) < 30:
+                        link_el = card.locator("a").first
+                        href = link_el.get_attribute("href") if link_el.count() > 0 else None
+
+                        if not href:
                             continue
 
-                        # try find link
-                        link = card.locator("a").first
-                        href = link.get_attribute("href") if link.count() > 0 else None
-
-                        if href and "/marketplace/item/" in href:
-                            full_url = "https://www.facebook.com" + href
+                        if "/marketplace/item/" in href:
+                            url_full = "https://www.facebook.com" + href
                         else:
-                            full_url = "N/A"
+                            continue
 
-                        item = {
+                        if url_full in seen_urls:
+                            continue
+
+                        seen_urls.add(url_full)
+
+                        results.append({
                             "location": "NSW",
                             "price": price,
-                            "title": text[:200],
-                            "url": full_url
-                        }
-
-                        if item not in results:
-                            results.append(item)
+                            "title": text[:180],
+                            "url": url_full
+                        })
 
                     except Exception as e:
-                        print("Card error:", e)
+                        print("card error:", e)
 
             except Exception as e:
-                print("Search failed:", search, e)
+                print("search failed:", search, e)
 
         browser.close()
 
-    print("TOTAL:", len(results))
+    print("TOTAL CLEAN RESULTS:", len(results))
     return results
